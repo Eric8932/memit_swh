@@ -3,6 +3,7 @@ import shutil
 from itertools import islice
 from time import time
 from typing import Tuple, Union
+import numpy as np
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer,LlamaTokenizer,LlamaForCausalLM
@@ -89,8 +90,10 @@ def main(
         else:
             run_id = 0
         run_dir = RESULTS_DIR / dir_name / new_name / f"run_{str(run_id).zfill(3)}"
+        save_deltas_dir = RESULTS_DIR / dir_name / new_name
         run_dir.mkdir(parents=True, exist_ok=True)
     print(f"Results will be stored at {run_dir}")
+    print(f"Model deltas be stored at {save_deltas_dir}")
 
     # Get run hyperparameters
     params_path = (
@@ -157,13 +160,14 @@ def main(
         print(f"Will load cache from {cache_template}")
 
     # Iterate through dataset
+    #我好像也不会跑num_edits和len(ds长度不同的样本)，我只是想保存一下模型而已
     for record_chunks in chunks(ds, num_edits):#把数据集均分，每份里面都有edits数量（一次性更改edits个），
         case_result_template = str(run_dir / "{}_edits-case_{}.json")
 
         # Is the chunk already done?
         already_finished = True
         for record in record_chunks:
-            if not Path(
+            if not Path(#看这几条是不是都跑过了
                 case_result_template.format(num_edits, record["case_id"])
             ).exists():
                 already_finished = False
@@ -182,7 +186,9 @@ def main(
             etc_args = dict(cache_template=cache_template) if any(alg in alg_name for alg in ["ROME", "MEMIT"]) else dict()
 
             start = time()
-            edited_model, weights_copy = apply_algo(
+            #影响因素有model 数据集，new_prompt 编辑数量--可以存在run_dir里面，以后要评测可以直接读
+            #直接跑算法，就重新跑一次吧
+            edited_model, weights_copy,deltas = apply_algo(
                 model,
                 tok,
                 [
@@ -197,6 +203,7 @@ def main(
             )
             exec_time = time() - start
             print("Execution took", exec_time)
+            np.save(save_deltas_dir/"deltas.npy",deltas)
         else:
             print("Directly Evaluate")
             exec_time = 0

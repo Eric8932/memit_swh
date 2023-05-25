@@ -42,7 +42,7 @@ def main(
             if "time" in data:
                 cur_sum["time"].append(data["time"])
 
-            for prefix in ["pre", "post"]:
+            for prefix in ["pre", "post"]:#好像没有pre，针对mcf数据集
                 # Probability metrics for which new should be lower (better) than true
                 for key in ["rewrite_prompts_probs", "paraphrase_prompts_probs"]:
                     if prefix not in data or key not in data[prefix]:

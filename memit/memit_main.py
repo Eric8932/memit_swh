@@ -60,7 +60,7 @@ def apply_memit_to_model(#方法
 
     print(f"New weights successfully inserted into {list(deltas.keys())}")
 
-    return model, weights_copy
+    return model, weights_copy,deltas
 
 
 def execute_memit(
@@ -181,7 +181,6 @@ def execute_memit(
             module_template=hparams.layer_module_tmp,
             fact_token_strategy=hparams.fact_token,
         )[1].T
-        print("cur_zs_shape",cur_zs.shape)
         targets = zs - cur_zs#hidden_size*修改个数
         print("z error", torch.linalg.norm(targets, dim=0).mean())
 

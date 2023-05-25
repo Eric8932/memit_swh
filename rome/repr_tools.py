@@ -150,7 +150,7 @@ def get_reprs_at_idxs(
     )
     module_name = module_template.format(layer)
 
-    if module_name == "transformer.h.8":#就是这里有问题，这个得不到任何输入，不知道有没有输出。
+    if module_name == "transformer.h.8":#就是这里有问题，这个得不到任何输入，不知道有没有输出。只有在GPT-J算cur_zs时用到，这时只要输出
         module_name = "transformer.h.8.mlp.fc_out"
     to_return = {"in": [], "out": []}
 

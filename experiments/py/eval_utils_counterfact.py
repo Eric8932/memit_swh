@@ -165,14 +165,15 @@ def normalize_text(s,special_tokens=[]):
     def remove_punc(text,special_tokens):
         for spe in special_tokens:
             text = text.replace(spe,"")
-        exclude = set(string.punctuation)
+        # exclude = set(string.punctuation)
+        exclude = set(("?",":"))
         return "".join(ch for ch in text if ch not in exclude)
 
     def lower(text):#不用
         return text.lower()
 
 #     return white_space_fix(remove_articles(remove_punc(lower(s))))
-    return white_space_fix(remove_punc(s,special_tokens=[]))
+    return white_space_fix(remove_punc(s,special_tokens=special_tokens))
 
 def generate_in_acc(model, prompts: typing.List[str], target_true, target_new, model_name,model_path):
     if model_name in ['llama','vicuna']:

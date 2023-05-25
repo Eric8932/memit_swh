@@ -155,7 +155,7 @@ def normalize_text(s,special_tokens=[]):
         return text.lower()
 
 #     return white_space_fix(remove_articles(remove_punc(lower(s))))
-    return white_space_fix(remove_punc(s,special_tokens=[]))
+    return white_space_fix(remove_punc(s,special_tokens=special_tokens))
 
 def generate_in_acc(model, prompts: typing.List[str], target,model_name,model_path):
     if model_name in ['llama','vicuna']:
