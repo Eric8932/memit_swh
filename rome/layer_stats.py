@@ -110,7 +110,7 @@ def layer_stats(
         #         dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
         #     )
         #     raw_ds.save_to_disk('/data/wikipedia')
-        p = 'data/wikipedia/'#github
+        p = '/data/wikipedia/'#github
         # p = '/home/swh/.cache/huggingface/datasets/wikipedia/20220301.en/2.0.0/aa542ed919df55cc5d3347f42dd4521d05ca68751f50dbc32bae2a7f1e167559/'
         raw_ds = datasets.load_from_disk(p)
 
