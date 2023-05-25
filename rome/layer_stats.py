@@ -5,7 +5,8 @@ import torch
 from datasets import load_dataset
 from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
-
+import datasets
+from datasets import load_dataset
 from util.globals import *
 from util.nethook import Trace, set_requires_grad
 from util.runningstats import CombinedStat, Mean, NormMean, SecondMoment, tally
@@ -94,23 +95,24 @@ def layer_stats(
     """
 
     def get_ds():
-        path = Path('data/wikipedia/dataset_info.json')
-        if path.exists():
-            raw_ds = load_dataset(
-                "data/wikipedia/"
-                # ds_name,
-                # # 'data/wikipedia',20220301 20200501
-                # dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
-            )
-        else:
-            raw_ds = load_dataset(
-                ds_name,
-                # 'data/wikipedia',20220301 20200501
-                dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
-            )
-            raw_ds.save_to_disk('/data/wikipedia')
+        # path = Path('data/wikipedia/dataset_info.json')
+        # if path.exists():
+        #     raw_ds = load_dataset(
+        #         "data/wikipedia/"
+        #         # ds_name,
+        #         # # 'data/wikipedia',20220301 20200501
+        #         # dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
+        #     )
+        # else:
+        #     raw_ds = load_dataset(
+        #         ds_name,
+        #         # 'data/wikipedia',20220301 20200501
+        #         dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
+        #     )
+        #     raw_ds.save_to_disk('/data/wikipedia')
+        p = 'data/wikipedia/'#github
         # p = '/home/swh/.cache/huggingface/datasets/wikipedia/20220301.en/2.0.0/aa542ed919df55cc5d3347f42dd4521d05ca68751f50dbc32bae2a7f1e167559/'
-        # raw_ds = load_dataset(p)
+        raw_ds = datasets.load_from_disk(p)
 
         if 'llama' in tokenizer.name_or_path:
             maxlen = model.config.max_position_embeddings
