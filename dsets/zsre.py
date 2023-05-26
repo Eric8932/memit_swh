@@ -11,7 +11,7 @@ REMOTE_URL = f"{REMOTE_ROOT_URL}/data/dsets/zsre_mend_eval.json"
 def process_prompt(ori_str):
     #vicua+3.带着Answer these questions问
     ori_str = ori_str.replace("nq question: ","")
-    return "Answer these questions:\nQuestion: "+ori_str+"\nAnswer:"
+    return "Answer these questions:\nQ: "+ori_str+"\nA:"
 
 #zsre的prompt rephrase都只有一个，对应同一个target。 neighborhood/loc也只有一个，但是对应一个新的target
 #src rephrsae有问号。但是loc无问号 不过loc的开头是"nq question: "
