@@ -442,7 +442,7 @@ class Task(abc.ABC):
     # The name of a subset within `DATASET_PATH`.
     DATASET_NAME: str = None
 
-    def __init__(self, data_dir=None, cache_dir=None, download_mode=None):
+    def __init__(self, data_dir=None, cache_dir='/apdcephfs/share_1157269/yirenchen/wenhangshi/data_tmp', download_mode=None):
         """
         :param data_dir: str
             Stores the path to a local folder containing the `Task`'s data files.
