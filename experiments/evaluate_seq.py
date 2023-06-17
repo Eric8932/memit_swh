@@ -65,6 +65,7 @@ def main(
     new_prompt:bool = False,
     model_path = None,
     eval_edited_freq=50,
+    loc_data_size=100,
 ):
     # Set algorithm-specific variables
     params_class, apply_algo = ALG_DICT[alg_name]#超参数和应用的算法
@@ -151,7 +152,7 @@ def main(
 
     ds_class, ds_eval_method,ds_eval_loc = DS_DICT[ds_name]
     ds = ds_class(DATA_DIR, tok=tok, size=dataset_size_limit,llama=use_llama,new_prompt=new_prompt)#都会限制数据集的大小和编辑数量一致（尤其CF），因此只有一个chunk
-    ds_loc =LOC_DICT[ds_name](DATA_DIR, tok=tok, size=1000000,llama=use_llama,new_prompt=new_prompt)#取整个数据集
+    ds_loc =LOC_DICT[ds_name](DATA_DIR, tok=tok, size=loc_data_size,llama=use_llama,new_prompt=new_prompt)#取整个数据集
 
     #可以保留，因为针对每个样本计算cache
     cache_template = None
@@ -529,6 +530,12 @@ if __name__ == "__main__":
         default=200,
         help="Frequency for evaluating all edited examples.",
     )
+    parser.add_argument(
+        "--loc_data_size",
+        type=int,
+        default=100,
+        help="Size for loc data",
+    )
     parser.set_defaults(skip_generation_tests=False, conserve_memory=False)
     args = parser.parse_args()
 
@@ -550,5 +557,6 @@ if __name__ == "__main__":
         # use_vicuna = args.use_vicuna,
         new_prompt = args.new_prompt,
         model_path = args.model_path,
-        eval_edited_freq = args.eval_edited_freq
+        eval_edited_freq = args.eval_edited_freq,
+        loc_data_size = args.loc_data_size,
     )
