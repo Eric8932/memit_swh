@@ -221,14 +221,14 @@ class HuggingFaceAutoLM(BaseLM):
             ).to("cuda")
 
         assert delta_path is not None #假设只读出一个字典
-        delta_path =os.path.join(delta_path,'deltas.npy')
+        delta_path =os.path.join(delta_path,'deltas_seq.npy')
         deltas = np.load(delta_path,allow_pickle=True).item()
         with torch.no_grad():
-            for w_name, (key_mat, val_mat) in deltas.items():
-                key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
-                upd_matrix = key_mat @ val_mat.T
+            for w_name, (upd_matrix) in deltas.items():
+                # key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
+                # upd_matrix = key_mat @ val_mat.T
                 w = nethook.get_parameter(model, w_name)#返回对应的参数
-                upd_matrix = upd_matrix_match_shape(upd_matrix, w.shape)
+                upd_matrix = upd_matrix_match_shape(upd_matrix.to('cuda'), w.shape)
                 w[...] += upd_matrix.float()
         return model
 

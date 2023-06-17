@@ -396,10 +396,10 @@ def main(
 
     
     #保存不断累积的变化量（+）
-    np.save(save_deltas_dir/("deltas_"+str(edit_num)+".npy"),acc_delta)
+    np.save(save_deltas_dir/("deltas_seq.npy"),acc_delta)
     #保存没被edit的record pass_record["case_id"]=pass_record["requested_rewrite"]
-    np.save(save_deltas_dir/("passrecord_"+str(edit_num)+".npy"),pass_record)
-    np.save(save_deltas_dir/("editedcord_"+str(edit_num)+".npy"),edited_record)
+    np.save(save_deltas_dir/("passrecord_"+str(num_edits)+".npy"),pass_record)
+    np.save(save_deltas_dir/("editedcord_"+str(num_edits)+".npy"),edited_record)
 
 
 def window(seq, n=2):
