@@ -22,6 +22,7 @@ from util.generate import generate_fast
 from util.perplexity import perplexity
 
 
+
 def compute_rewrite_quality_counterfact(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
@@ -192,7 +193,7 @@ def generate_in_acc(model, prompts: typing.List[str], target_true, target_new, m
     pred = tok.batch_decode(model.generate(
             input_ids=prompt_tok["input_ids"], attention_mask=prompt_tok["attention_mask"],
                 num_beams=1, num_return_sequences=1, use_cache=True,max_new_tokens=15),
-                skip_special_tokens=True
+                skip_special_tokens=True,pad_token_id=tok.eos_token_id
                 )
     acc_l_true = []
     acc_l_new = []

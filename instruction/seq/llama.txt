@@ -1,0 +1,17 @@
+# coding=utf-8
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq \
+    --alg_name=MEMIT \
+    --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b.json \
+    --num_edits=10000 \
+    --dataset_size_limit=10000 --ds_name zsre --eval_edited_freq 2000 --use_cache
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq \
+    --alg_name=MEMIT \
+    --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b.json \
+    --num_edits=10000 \
+    --dataset_size_limit=10000 --ds_name mcf --eval_edited_freq 2000 --use_cache

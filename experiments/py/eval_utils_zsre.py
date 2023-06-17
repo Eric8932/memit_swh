@@ -16,7 +16,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from transformers import AutoModelForCausalLM, AutoTokenizer,LlamaTokenizer
 from dsets import AttributeSnippets
 
+#判断是否要编辑
 
+    
 def compute_rewrite_quality_zsre(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
@@ -174,7 +176,7 @@ def generate_in_acc(model, prompts: typing.List[str], target,model_name,model_pa
     pred = tok.batch_decode(model.generate(
             input_ids=prompt_tok["input_ids"], attention_mask=prompt_tok["attention_mask"],
                 num_beams=1, num_return_sequences=1, use_cache=True,max_new_tokens=15),
-                skip_special_tokens=True
+                skip_special_tokens=True,pad_token_id=tok.eos_token_id
                 )
     acc_l = []
     for i in range(len(pred)):

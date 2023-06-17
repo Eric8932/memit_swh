@@ -3,3 +3,4 @@ from .counterfact import CounterFactDataset, MultiCounterFactDataset
 from .knowns import KnownsDataset
 from .tfidf_stats import get_tfidf_vectorizer
 from .zsre import MENDQADataset
+from .zsre_seq import MENDQADataset_Seq,MENDQADataset_Loc
