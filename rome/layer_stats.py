@@ -97,8 +97,8 @@ def layer_stats(
     def get_ds():
         raw_ds = load_dataset(
             ds_name,
-            dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name])
-            # cache_dir=None) github
+            dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
+            cache_dir='/apdcephfs/share_1157269/yirenchen/wenhangshi/data_tmp/wikipedia')#github
 
         if 'llama' in tokenizer.name_or_path:
             maxlen = model.config.max_position_embeddings
