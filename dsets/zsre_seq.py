@@ -106,7 +106,7 @@ class MENDQADataset_Seq:
                             "target_true": {"str": "<|endoftext|>"},
                         },
                         #下面这个只在算指标时才会用到
-                        "paraphrase_prompts": record["rephrase"],
+                        "paraphrase_prompts": record["rephrase"],#已经是list
                         "neighborhood_prompts": np,
                         "loc_ans":record["loc_ans"],
                         "loc_prompt":[record["loc"]],

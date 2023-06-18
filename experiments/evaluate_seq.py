@@ -181,15 +181,10 @@ def main(
     case_result_template = str(run_dir / "{}_edits-case_{}_{}.json")
     gen_test_vars = [snips, vec]#计算fluency和consistency
 
-    for record in ds_loc:
-        out_file = Path(case_result_template.format(num_edits, record["case_id"],'orig_loc'))
-        if out_file.exists():
-            print(f"Skipping {out_file}; already exists")
-            continue
-        #一条一条评估
-        metrics = {
-            "case_id": record["case_id"],
-            "post": ds_eval_loc(
+    if args.ds_name == 'zsre':
+        equal_list = []#每一个样本只有一个acc，也只有一个结果要看
+        for record in ds_loc:
+            res= ds_eval_loc(
                 model,
                 tok,
                 record,
@@ -201,14 +196,39 @@ def main(
                 model_name,
                 model_path,
                 new_prompt,
-            ),
-        }
-        torch.cuda.empty_cache()
+            )
+            equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
+            torch.cuda.empty_cache()
+        loc_res = {}
+        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+    else:
+        equal_list = []
+        ngram_entropy_list=[]
+        reference_score_list = []
+        for record in ds_loc:
+            res= ds_eval_loc(
+                model,
+                tok,
+                record,
+                *(
+                    gen_test_vars
+                    if record["case_id"] % generation_test_interval == 0
+                    else [None, None]
+                ),  # Only test generation every generation_test_interval cases
+                model_name,
+                model_path,
+                new_prompt,
+            )
+            equal_list+=[r[1] for r in res["loc_predin_true"]]
+            ngram_entropy_list.append(res["ngram_entropy"])
+            reference_score_list.append(res["reference_score"])
+            torch.cuda.empty_cache()
+        loc_res = {}
+        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+        loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
+        loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
 
-        # Dump metrics in .json
-        #保存最终的模型在所有edited_record上的表现
-        with open(out_file, "w") as f:
-            json.dump(metrics, f, indent=1)
+    np.save(save_deltas_dir/("orig_loc.npy"),loc_res)
 
 
     for record_chunks in chunks(ds, 1):#每一次都更新1个
@@ -364,15 +384,10 @@ def main(
             json.dump(metrics, f, indent=1)
 
 
-    for record in ds_loc:
-        out_file = Path(case_result_template.format(num_edits, record["case_id"],'final_loc'))
-        if out_file.exists():
-            print(f"Skipping {out_file}; already exists")
-            continue
-        #一条一条评估
-        metrics = {
-            "case_id": record["case_id"],
-            "post": ds_eval_loc(
+    if args.ds_name == 'zsre':
+        equal_list = []#每一个样本只有一个acc，也只有一个结果要看
+        for record in ds_loc:
+            res= ds_eval_loc(
                 model,
                 tok,
                 record,
@@ -384,14 +399,39 @@ def main(
                 model_name,
                 model_path,
                 new_prompt,
-            ),
-        }
-        torch.cuda.empty_cache()
+            )
+            equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
+            torch.cuda.empty_cache()
+        loc_res = {}
+        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+    else:
+        equal_list = []
+        ngram_entropy_list=[]
+        reference_score_list = []
+        for record in ds_loc:
+            res= ds_eval_loc(
+                model,
+                tok,
+                record,
+                *(
+                    gen_test_vars
+                    if record["case_id"] % generation_test_interval == 0
+                    else [None, None]
+                ),  # Only test generation every generation_test_interval cases
+                model_name,
+                model_path,
+                new_prompt,
+            )
+            equal_list+=[r[1] for r in res["loc_predin_true"]]
+            ngram_entropy_list.append(res["ngram_entropy"])
+            reference_score_list.append(res["reference_score"])
+            torch.cuda.empty_cache()
+        loc_res = {}
+        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+        loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
+        loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
 
-        # Dump metrics in .json
-        #保存最终的模型在所有edited_record上的表现
-        with open(out_file, "w") as f:
-            json.dump(metrics, f, indent=1)
+    np.save(save_deltas_dir/("final_loc.npy"),loc_res)
 
 
     
@@ -515,7 +555,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--new_prompt",
         action="store_true",
-        help="change tokenize when using llama",
+        help="change the prompt for src rephrase neighborhood for zsre dataset",
     )
     parser.add_argument(
         "--model_path",
