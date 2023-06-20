@@ -19,8 +19,8 @@ from dsets import (
     MultiCounterFactDataset,
     get_tfidf_vectorizer,
 )
-from experiments.py.eval_utils_counterfact_seq import compute_rewrite_quality_counterfact,compute_loc_counterfact
-from experiments.py.eval_utils_zsre_seq import compute_rewrite_quality_zsre,edit_or_not,compute_loc_zsre
+from experiments.py.eval_utils_counterfact import compute_rewrite_quality_counterfact
+from experiments.py.eval_utils_zsre import compute_rewrite_quality_zsre
 from memit import MEMITHyperParams, apply_memit_to_model
 from rome import ROMEHyperParams, apply_rome_to_model
 from util import nethook
@@ -34,8 +34,8 @@ ALG_DICT = {
 }
 
 DS_DICT = {
-    "mcf": (MultiCounterFactDataset, compute_rewrite_quality_counterfact,compute_loc_counterfact),
-    "zsre": (MENDQADataset_Seq, compute_rewrite_quality_zsre,compute_loc_zsre),
+    "mcf": (MultiCounterFactDataset, compute_rewrite_quality_counterfact),
+    "zsre": (MENDQADataset_Seq, compute_rewrite_quality_zsre),
 }
 LOC_DICT = {
     "mcf": MultiCounterFactDataset,#数据集没有变化，不需要改其实
@@ -79,13 +79,13 @@ def main(
         new_name += "_zeroshot"
     if new_prompt:
         new_name += '_newprompt'
-    new_name += '_seq'
+    new_name += '_init'
 
     # Determine run directory
     # Create new dir if not continuing from prev run OR prev run doesn't exist
     if (
         continue_from_run is None
-        or not (run_dir := RESULTS_DIR / dir_name / new_name / continue_from_run).exists()
+        or not (run_dir := RESULTS_DIR / dir_name /new_name/ continue_from_run).exists()
     ):
         continue_from_run = None
     #文件夹要添加1.模型 2.样本几条 3.有无使用算法 4.有无new_prompt
@@ -152,7 +152,7 @@ def main(
     if num_edits > 1:
         assert ds_name != "cf", f"{ds_name} does not support multiple edits"
 
-    ds_class, ds_eval_method,ds_eval_loc = DS_DICT[ds_name]
+    ds_class, ds_eval_method = DS_DICT[ds_name]
     ds = ds_class(DATA_DIR, tok=tok, size=dataset_size_limit,llama=use_llama,new_prompt=new_prompt)#都会限制数据集的大小和编辑数量一致（尤其CF），因此只有一个chunk
     ds_loc =LOC_DICT[ds_name](DATA_DIR, tok=tok, size=loc_data_size,llama=use_llama,new_prompt=new_prompt)#取整个数据集
 
@@ -183,120 +183,13 @@ def main(
     case_result_template = str(run_dir / "{}_edits-case_{}_{}.json")
     gen_test_vars = [snips, vec]#计算fluency和consistency
 
-    loc_start = time()
-    if args.ds_name == 'zsre':
-        equal_list = []#每一个样本只有一个acc，也只有一个结果要看
-        for record in ds_loc:
-            res= ds_eval_loc(
-                model,
-                tok,
-                record,
-                *(
-                    gen_test_vars
-                    if record["case_id"] % generation_test_interval == 0
-                    else [None, None]
-                ),  # Only test generation every generation_test_interval cases
-                model_name,
-                model_path,
-                new_prompt,
-            )
-            equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
-            torch.cuda.empty_cache()
-        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-    else:
-        equal_list = []
-        ngram_entropy_list=[]
-        reference_score_list = []
-        for record in ds_loc:
-            res= ds_eval_loc(
-                model,
-                tok,
-                record,
-                *(
-                    gen_test_vars
-                    if record["case_id"] % generation_test_interval == 0
-                    else [None, None]
-                ),  # Only test generation every generation_test_interval cases
-                model_name,
-                model_path,
-                new_prompt,
-            )
-            equal_list+=[r[1] for r in res["loc_predin_true"]]
-            ngram_entropy_list.append(res["ngram_entropy"])
-            reference_score_list.append(res["reference_score"])
-            torch.cuda.empty_cache()
-        loc_res = {}
-        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-        loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
-        loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
-    loc_exec_time = time()-loc_start
-    loc_res['loc_exec_time'] = loc_exec_time
-
-    np.save(save_deltas_dir/("orig_loc.npy"),loc_res)
-
 
     for record_chunks in chunks(ds, 1):#每一次都更新1个
         #更新前判断是否应该更新
-        record = record_chunks[0]
-        edit_ = edit_or_not(model,tok,record)
-        if not edit_:
-            print("record has already success and pass")
-            pass_record[record["case_id"]]=record["requested_rewrite"]
-            continue
-        edited_record[record["case_id"]]=record["requested_rewrite"]
-
-        # Compute weight changes + record weights that changed
-        args_conserve_memory = (
-            dict(return_orig_weights_device=("cpu" if conserve_memory else "cuda"))
-            if conserve_memory
-            else dict()
-        )
-        etc_args = dict(cache_template=cache_template) if any(alg in alg_name for alg in ["ROME", "MEMIT"]) else dict()
-
-        start = time()
-        #影响因素有model 数据集，new_prompt 编辑数量--可以存在run_dir里面，以后要评测可以直接读
-        #直接跑算法，就重新跑一次吧
-        edited_model, weights_copy,deltas = apply_algo(
-            model,
-            tok,
-            [
-                {"case_id": record["case_id"], **record["requested_rewrite"]}
-                for record in record_chunks
-            ],
-            hparams,
-            copy=False,
-            return_orig_weights=True,
-            **args_conserve_memory,
-            **etc_args,#保存的事先计算好的kv对的地址，但是应该还没算出来
-        )
-        exec_time = time() - start
-        print("Execution took", exec_time)
-        if acc_delta is None:
-            acc_delta = {}
-            with torch.no_grad():
-                for w_name, (key_mat, val_mat) in deltas.items():
-                    key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
-                    upd_matrix = key_mat @ val_mat.T
-                    acc_delta[w_name] = upd_matrix.float()
-            
-        else:
-            with torch.no_grad():
-                for w_name, (key_mat, val_mat) in deltas.items():
-                    key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
-                    upd_matrix = key_mat @ val_mat.T
-                    acc_delta[w_name] += upd_matrix.float()
-
-        # np.save(save_deltas_dir/"deltas_"+str(edit_num)+".npy",deltas)#不把每一个都保存了
-        edit_record.append(record)
-        edit_num+=1
-        model = edited_model
-
-        # Evaluate new model
-        start = time()
-
+      
         #一条一条评估,评估可以跳过
-        print("{} record".format(edit_num))
-        out_file = Path(case_result_template.format(num_edits, record["case_id"],"afedit"))
+        record = record_chunks[0]
+        out_file = Path(case_result_template.format(num_edits, record["case_id"],"init"))
         if out_file.exists():
             print(f"Skipping {out_file}; already exists")
             continue
@@ -304,8 +197,6 @@ def main(
         metrics = {
             "case_id": record["case_id"],
             # "grouped_case_ids": case_ids,#一起修改的事实的id
-            "num_edits": num_edits,
-            "time": exec_time,
             "post": ds_eval_method(
                 model,
                 tok,
@@ -325,127 +216,8 @@ def main(
         with open(out_file, "w") as f:
             #保存每一条编辑后的模型在编辑样本上的表现
             json.dump(metrics, f, indent=1)
-        print("Evaluation took", time() - start)
-
-        #把编辑过的全部评估一遍
-        if (edit_num+1)%eval_edited_freq==0:
-            for record in edit_record:
-                out_file = Path(case_result_template.format(num_edits, record["case_id"],"eval_"+str(edit_num)))
-                if out_file.exists():
-                    print(f"Skipping {out_file}; already exists")
-                    continue
-                #一条一条评估
-                metrics = {
-                    "case_id": record["case_id"],
-                    "post": ds_eval_method(
-                        model,
-                        tok,
-                        record,
-                        *(
-                            gen_test_vars
-                            if record["case_id"] % generation_test_interval == 0
-                            else [None, None]
-                        ),  # Only test generation every generation_test_interval cases
-                        model_name,
-                        model_path,
-                        new_prompt,
-                    ),
-                }
-                torch.cuda.empty_cache()
-
-                #保存中间的模型在所有edited_record上的表现
-                with open(out_file, "w") as f:
-                    json.dump(metrics, f, indent=1)
-
-    #最后再全部跑一遍
-    for record in edit_record:
-        out_file = Path(case_result_template.format(num_edits, record["case_id"],'final'))
-        if out_file.exists():
-            print(f"Skipping {out_file}; already exists")
-            continue
-        #一条一条评估
-        metrics = {
-            "case_id": record["case_id"],
-            "post": ds_eval_method(
-                model,
-                tok,
-                record,
-                *(
-                    gen_test_vars
-                    if record["case_id"] % generation_test_interval == 0
-                    else [None, None]
-                ),  # Only test generation every generation_test_interval cases
-                model_name,
-                model_path,
-                new_prompt,
-            ),
-        }
-        torch.cuda.empty_cache()
-
-        # Dump metrics in .json
-        #保存最终的模型在所有edited_record上的表现
-        with open(out_file, "w") as f:
-            json.dump(metrics, f, indent=1)
-
-    loc_start= time()
-    if args.ds_name == 'zsre':
-        equal_list = []#每一个样本只有一个acc，也只有一个结果要看
-        for record in ds_loc:
-            res= ds_eval_loc(
-                model,
-                tok,
-                record,
-                *(
-                    gen_test_vars
-                    if record["case_id"] % generation_test_interval == 0
-                    else [None, None]
-                ),  # Only test generation every generation_test_interval cases
-                model_name,
-                model_path,
-                new_prompt,
-            )
-            equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
-            torch.cuda.empty_cache()
-        loc_res = {}
-        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-    else:
-        equal_list = []
-        ngram_entropy_list=[]
-        reference_score_list = []
-        for record in ds_loc:
-            res= ds_eval_loc(
-                model,
-                tok,
-                record,
-                *(
-                    gen_test_vars
-                    if record["case_id"] % generation_test_interval == 0
-                    else [None, None]
-                ),  # Only test generation every generation_test_interval cases
-                model_name,
-                model_path,
-                new_prompt,
-            )
-            equal_list+=[r[1] for r in res["loc_predin_true"]]
-            ngram_entropy_list.append(res["ngram_entropy"])
-            reference_score_list.append(res["reference_score"])
-            torch.cuda.empty_cache()
-        loc_res = {}
-        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-        loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
-        loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
-    loc_exec_time = time()-loc_start
-    loc_res['loc_exec_time'] = loc_exec_time
-
-    np.save(save_deltas_dir/("final_loc.npy"),loc_res)
 
 
-    
-    #保存不断累积的变化量（+）
-    np.save(save_deltas_dir/("deltas_seq.npy"),acc_delta)
-    #保存没被edit的record pass_record["case_id"]=pass_record["requested_rewrite"]
-    np.save(save_deltas_dir/("passrecord_"+str(num_edits)+".npy"),pass_record)
-    np.save(save_deltas_dir/("editedcord_"+str(num_edits)+".npy"),edited_record)
 
 
 def window(seq, n=2):
