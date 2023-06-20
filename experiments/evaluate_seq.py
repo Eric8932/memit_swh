@@ -353,9 +353,61 @@ def main(
                 }
                 torch.cuda.empty_cache()
 
-                #保存中间的模型在所有edited_record上的表现
                 with open(out_file, "w") as f:
                     json.dump(metrics, f, indent=1)
+
+            loc_start= time()
+            if args.ds_name == 'zsre':
+                equal_list = []#每一个样本只有一个acc，也只有一个结果要看
+                for record in ds_loc:
+                    res= ds_eval_loc(
+                        model,
+                        tok,
+                        record,
+                        *(
+                            gen_test_vars
+                            if record["case_id"] % generation_test_interval == 0
+                            else [None, None]
+                        ),  # Only test generation every generation_test_interval cases
+                        model_name,
+                        model_path,
+                        new_prompt,
+                    )
+                    equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
+                    torch.cuda.empty_cache()
+                loc_res = {}
+                loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+            else:
+                equal_list = []
+                ngram_entropy_list=[]
+                reference_score_list = []
+                for record in ds_loc:
+                    res= ds_eval_loc(
+                        model,
+                        tok,
+                        record,
+                        *(
+                            gen_test_vars
+                            if record["case_id"] % generation_test_interval == 0
+                            else [None, None]
+                        ),  # Only test generation every generation_test_interval cases
+                        model_name,
+                        model_path,
+                        new_prompt,
+                    )
+                    equal_list+=[r[1] for r in res["loc_predin_true"]]
+                    ngram_entropy_list.append(res["ngram_entropy"])
+                    reference_score_list.append(res["reference_score"])
+                    torch.cuda.empty_cache()
+                loc_res = {}
+                loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+                loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
+                loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
+            loc_exec_time = time()-loc_start
+            loc_res['loc_exec_time'] = loc_exec_time
+
+            np.save(save_deltas_dir/("loc_"+str(edit_num)+".npy"),loc_res)
+
 
     #最后再全部跑一遍
     for record in edit_record:
