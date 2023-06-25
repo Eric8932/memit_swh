@@ -87,9 +87,9 @@ class MENDQADataset:
                 ), f"Neighborhood prompt missing `nq question:`. Check for errors?"
                 #ans都要空一格
                 if llama:
-                    ans_toks = tok(record["loc_ans"])["input_ids"][1:]
+                    ans_toks = tok(record["loc_ans"])["input_ids"][1:]#开头就是有空格版本了
                 else:
-                    ans_toks = tok(" " + record["loc_ans"])["input_ids"]#loc_ans的id序列
+                    ans_toks = tok(" " + record["loc_ans"])["input_ids"]#给开头加上空格，编码有空格版本的开头。相当于拼接target token
                 if self.llama:
                     np = [#针对ans_toks的每一个，构造一个序列
                             {
