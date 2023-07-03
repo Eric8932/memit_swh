@@ -67,7 +67,7 @@ def get_words_idxs_in_templates(
             prefix = prefix[:-1]
 
             prefixes[i] = prefix
-            words[i] = f" {words[i].strip()}"
+            words[i] = f" {words[i].strip()}"#这里给words前面加了空格.但是是深拷贝，所以不会影响原来的结果
 
     # Tokenize to determine lengths
     assert len(prefixes) == len(words) == len(suffixes)
@@ -89,7 +89,7 @@ def get_words_idxs_in_templates(
 
     # Compute indices of last tokens
     if subtoken == "last" or subtoken == "first_after_last":
-        if 'llama' in tok.name_or_path:#因为开头有1，多去掉一个1
+        if 'llama' in tok.name_or_path:#两个开头都有1，但是因为这是用于索引，所以只去掉一个1.多去掉一个1因为words前面加了一个空格
             return [
                 [
                     prefixes_len[i]
@@ -172,8 +172,7 @@ def get_reprs_at_idxs(
         contexts_tok = tok(batch_contexts, padding=True, return_tensors="pt").to(
             next(model.parameters()).device
         )
-        #反正我也只要output，所以好像无所谓？
-        
+
         with torch.no_grad():
             with nethook.Trace(
                 module=model,

@@ -50,13 +50,13 @@ def apply_memit_to_model(#方法
         for w_name, (key_mat, val_mat) in deltas.items():
             key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
             upd_matrix = key_mat @ val_mat.T
-            w = nethook.get_parameter(model, w_name)#返回对应的参数
+            w = nethook.get_parameter(model, w_name)#应该是fp16的
             upd_matrix = upd_matrix_match_shape(upd_matrix, w.shape)
 
             if return_orig_weights and w_name not in weights_copy:
                 weights_copy[w_name] = w.detach().clone()
 
-            w[...] += upd_matrix.float()
+            w[...] += upd_matrix.float()#+=还是保持fp16，而且这种方法不会影响精度.
 
     print(f"New weights successfully inserted into {list(deltas.keys())}")
 
@@ -81,6 +81,7 @@ def execute_memit(
     requests = deepcopy(requests)#requested_rewrite
     for i, request in enumerate(requests):
         #GPT-J/NEO的tokenizer要求target预留一个空格出来，只有compute_z里面用上了
+        #为了得到target token
         if request["target_new"]["str"][0] != " ":
             # Space required for correct tokenization
             requests[i]["target_new"]["str"] = " " + request["target_new"]["str"]
@@ -156,7 +157,7 @@ def execute_memit(
                 )
                 print(f"Cached k/v pair at {cache_fname}")
         exec_time = time() - start
-        print("Execution took", exec_time)
+        print("Execution took", exec_time)#10-7的时间，非常快，
     zs = torch.stack(z_list, dim=1)#构成矩阵的形式，不同request对应的值不同
     print("zs_shape",zs.shape)
 
@@ -232,8 +233,8 @@ def execute_memit(
 
         # Update model weights and record desired changes in `delta` variable
         with torch.no_grad():
-            # weights[weight_name][...] = weights_copy[weight_name] + upd_matrix.float()#保存该更改，其实应该变成半精度
-            weights[weight_name][...] = weights_copy[weight_name] + upd_matrix.float().half()
+            #这样写没问题，并且还稍微提升了一点表现，所以最终的表现差异应该是来自于fp16和fp32的转换
+            weights[weight_name][...] = weights_copy[weight_name] + upd_matrix.float()#变成了fp32，只影响后续的计算
             # print(weights_copy[weight_name].device,weights_copy[weight_name].dtype)
             deltas[weight_name] = (
                 adj_k.detach().cpu(),

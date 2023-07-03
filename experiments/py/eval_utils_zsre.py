@@ -219,7 +219,7 @@ def test_batch_prediction_acc(model, tok, prompts: typing.List[str], target,use_
         else:
             correct_id = tok(target, padding=True, return_tensors="pt").to("cuda")[
             "input_ids"
-        ][:,1:]#llama开头会有一个bos
+        ][:,1:]#llama开头会有一个1
         # Temporary hack to deal with foreign characters.
         correct_id = correct_id[:, 0].squeeze()#虽然target token此时应该也只有一个
             #看能预测对几个, T/F列表。只针对最后一个位置的预. 对于一个prompt+target，会有很多个预测？ 看看保存的是不是列表就知道了

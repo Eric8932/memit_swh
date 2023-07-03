@@ -233,7 +233,9 @@ def test_batch_prediction(
     which_correct: Which target to consider correct. Either 0 for "new" or 1 for "true".
     """
 
-    prefix_lens = [len(n) for n in tok(prefixes)["input_ids"]]#每个输入tokenized的长度
+    prefix_lens = [len(n) for n in tok(prefixes)["input_ids"]]#每个输入tokenized的长度,llama开头有1
+    #这里不考虑llama的减1因为后面模型输入的时候也有1
+
     #分别拼接两个target成一个完整的句子，再tokenize
 
     prompt_tok = tok(
@@ -247,9 +249,9 @@ def test_batch_prediction(
     ).to("cuda")#如果是llama，开头会是0。但是target部分没有差别
 
     if use_llama:
-        a_tok, b_tok = (tok(f"{n}")["input_ids"][1:] for n in [target_new, target_true])#llama针对target，不要第一个
+        a_tok, b_tok = (tok(f"{n}")["input_ids"][1:] for n in [target_new, target_true])#llama针对target，不要第一个。开头不用添加空格
     else:
-        a_tok, b_tok = (tok(f" {n}")["input_ids"] for n in [target_new, target_true])#不同target的长度
+        a_tok, b_tok = (tok(f" {n}")["input_ids"] for n in [target_new, target_true])#不同target的长度，开头有空格
     choice_a_len, choice_b_len = (len(n) for n in [a_tok, b_tok])
 
     with torch.no_grad():

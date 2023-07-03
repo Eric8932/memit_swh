@@ -42,17 +42,23 @@ def compute_z(
         target_ids = tok(request["target_new"]["str"], return_tensors="pt").to("cuda")[
             "input_ids"
         ][0][2:]
+        rewriting_prompts = [
+            context.format(request["prompt"]) +" "+tok.decode(target_ids[:-1])#llama的decode开头是没有空格
+            for context_types in context_templates
+            for context in context_types
+        ]
     else:
         target_ids = tok(request["target_new"]["str"], return_tensors="pt").to("cuda")[
             "input_ids"
         ][0]
+        rewriting_prompts = [
+            context.format(request["prompt"]) + tok.decode(target_ids[:-1])
+            for context_types in context_templates
+            for context in context_types
+        ]
 
     # Compile list of rewriting and KL x/y pairs。5+1个模版，每个模版只有一条句子--6个句子，拼接上整个target（target只有一个）
-    rewriting_prompts = [
-        context.format(request["prompt"]) + tok.decode(target_ids[:-1])
-        for context_types in context_templates
-        for context in context_types
-    ] #把原prompt接在prefix后面，有一个prefix是空的。然后拼上整个target
+    
     kl_prompts = ["{} is a"]#专门用于计算KL散度的模版
     all_prompts = rewriting_prompts + kl_prompts
 

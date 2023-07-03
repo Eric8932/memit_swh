@@ -127,13 +127,15 @@ def main(
         #llama tokenize一定是0开头，再加上所有的target都是" "开头的，因此要考虑是[1:]还是[2:]
         if model_name in ['llama','vicuna']:
         #/data/swh/UER/TencentPretrain/models/vicuna-7b',/data/swh/UER/TencentPretrain/models/llama/7b_new
-            model = LlamaForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16).cuda()
+            # model = LlamaForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16).cuda()
+            model = LlamaForCausalLM.from_pretrained(model_path).cuda()
             tok = LlamaTokenizer.from_pretrained(model_path)
             tok.pad_token = '<unk>'#虽然它是单条tokenize以及评测，但是genearte时会一起tokenize，所以padding还是有用的
             print(f"vocab length={len(tok.get_vocab())}")
             tok.name_or_path = tok.name_or_path+'llama'
         else:#models/gpt-j-6b
-            model = AutoModelForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16,).cuda()
+            # model = AutoModelForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16,).cuda()
+            model = AutoModelForCausalLM.from_pretrained(model_path).cuda()
             tok = AutoTokenizer.from_pretrained(model_path)
             tok.pad_token = tok.eos_token#空的和<|endoftext|
         model.config._name_or_path = model_name
@@ -327,7 +329,7 @@ def main(
             json.dump(metrics, f, indent=1)
         print("Evaluation took", time() - start)
 
-        #把编辑过的全部评估一遍
+        #把编辑过的以及loc全部评估一遍
         if (edit_num+1)%eval_edited_freq==0:
             for record in edit_record:
                 out_file = Path(case_result_template.format(num_edits, record["case_id"],"eval_"+str(edit_num)))
