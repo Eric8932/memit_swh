@@ -50,7 +50,7 @@ def apply_memit_to_model(#方法
         for w_name, (key_mat, val_mat) in deltas.items():
             key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
             upd_matrix = key_mat @ val_mat.T
-            w = nethook.get_parameter(model, w_name)#应该是fp16的
+            w = nethook.get_parameter(model, w_name)
             upd_matrix = upd_matrix_match_shape(upd_matrix, w.shape)
 
             if return_orig_weights and w_name not in weights_copy:

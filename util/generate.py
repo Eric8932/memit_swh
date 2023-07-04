@@ -80,7 +80,7 @@ def generate_fast(
     prompts: List[str],
     n_gen_per_prompt: int = 1,
     top_k: int = 5,
-    max_out_len: int = 200, #100
+    max_out_len: int = 200,
 ):
     """
     Fast, parallelized auto-regressive text generation with top-k sampling.
@@ -104,11 +104,9 @@ def generate_fast(
 
     with torch.no_grad():
         while input_ids.size(1) < max_out_len:  # while not exceeding max output length
-            # print(input_ids.shape,input_ids[:, cur_context].shape)
-            # print(attention_mask.shape,attention_mask[:, cur_context].shape)
             model_out = model(
-                input_ids=input_ids[:, cur_context],
-                attention_mask=attention_mask[:, cur_context],
+                input_ids=input_ids,
+                attention_mask=attention_mask
                 # past_key_values=past_key_values,
                 # use_cache=True,
             )
