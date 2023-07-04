@@ -431,7 +431,7 @@ def test_generation(
     ret = {
         "ngram_entropy": ngram_entropy,
         "reference_score": consistency_tfidf,
-        "text": gen_texts,
+        # "text": gen_texts,
     }
     #计算生成essence_texts的困惑度，但好像也没有用到
     if len(essence_texts) > 0:

@@ -182,7 +182,7 @@ def main(
     edit_num=0
     acc_delta = None
 
-    case_result_template = str(run_dir / "{}_edits-case_{}_{}.json")
+    case_result_template = str(run_dir / "{}_{}.json")
     gen_test_vars = [snips, vec]#计算fluency和consistency
 
     loc_start = time()
@@ -236,6 +236,7 @@ def main(
 
     np.save(save_deltas_dir/("orig_loc.npy"),loc_res)
 
+    afedit_res_list = []
 
     for record_chunks in chunks(ds, 1):#每一次都更新1个
         #更新前判断是否应该更新
@@ -298,10 +299,9 @@ def main(
 
         #一条一条评估,评估可以跳过
         print("{} record".format(edit_num))
-        out_file = Path(case_result_template.format(num_edits, record["case_id"],"afedit"))
-        if out_file.exists():
-            print(f"Skipping {out_file}; already exists")
-            continue
+        # if out_file.exists():
+        #     print(f"Skipping {out_file}; already exists")
+        #     continue
         
         metrics = {
             "case_id": record["case_id"],
@@ -322,21 +322,14 @@ def main(
                 new_prompt,
             ),
         }
+        afedit_res_list.append(metrics)
         torch.cuda.empty_cache()
 
-        with open(out_file, "w") as f:
-            #保存每一条编辑后的模型在编辑样本上的表现
-            json.dump(metrics, f, indent=1)
-        print("Evaluation took", time() - start)
 
         #把编辑过的以及loc全部评估一遍
         if (edit_num+1)%eval_edited_freq==0:
+            eval_res_list = []
             for record in edit_record:
-                out_file = Path(case_result_template.format(num_edits, record["case_id"],"eval_"+str(edit_num)))
-                if out_file.exists():
-                    print(f"Skipping {out_file}; already exists")
-                    continue
-                #一条一条评估
                 metrics = {
                     "case_id": record["case_id"],
                     "post": ds_eval_method(
@@ -353,10 +346,11 @@ def main(
                         new_prompt,
                     ),
                 }
+                eval_res_list.append(metrics)
                 torch.cuda.empty_cache()
-
-                with open(out_file, "w") as f:
-                    json.dump(metrics, f, indent=1)
+            out_file_eval = Path(case_result_template.format(num_edits,"eval_"+str(edit_num)))
+            with open(out_file_eval, "w") as f:
+                json.dump(eval_res_list, f, indent=1)
 
             loc_start= time()
             if args.ds_name == 'zsre':
@@ -410,14 +404,14 @@ def main(
 
             np.save(save_deltas_dir/("loc_"+str(edit_num)+".npy"),loc_res)
 
+    #保存每天样本编辑后的结果的列表
+    out_file_afedit = Path(case_result_template.format(num_edits,"per_afedit"))
+    with open(out_file_afedit, "w") as f:
+        json.dump(afedit_res_list, f, indent=1)
 
     #最后再全部跑一遍
+    final_res_list = []
     for record in edit_record:
-        out_file = Path(case_result_template.format(num_edits, record["case_id"],'final'))
-        if out_file.exists():
-            print(f"Skipping {out_file}; already exists")
-            continue
-        #一条一条评估
         metrics = {
             "case_id": record["case_id"],
             "post": ds_eval_method(
@@ -434,12 +428,13 @@ def main(
                 new_prompt,
             ),
         }
+        final_res_list.append(metrics)
         torch.cuda.empty_cache()
 
-        # Dump metrics in .json
-        #保存最终的模型在所有edited_record上的表现
-        with open(out_file, "w") as f:
-            json.dump(metrics, f, indent=1)
+    #保存最终的模型在所有edited_record上的表现
+    out_file_final = Path(case_result_template.format(num_edits,'per_final'))
+    with open(out_file_final, "w") as f:
+        json.dump(final_res_list, f, indent=1)
 
     loc_start= time()
     if args.ds_name == 'zsre':
