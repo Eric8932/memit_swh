@@ -204,6 +204,7 @@ def main(
             )
             equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
             torch.cuda.empty_cache()
+        loc_res = {}
         loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
     else:
         equal_list = []
