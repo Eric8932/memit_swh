@@ -119,7 +119,7 @@ def main(
             tok = LlamaTokenizer.from_pretrained(model_path)
             tok.pad_token = '<unk>'
             print(f"vocab length={len(tok.get_vocab())}")
-            tok.name_or_path = tok.name_or_path+'llama'
+            # tok.name_or_path = tok.name_or_path+'llama'
         else:#models/gpt-j-6b
             # model = AutoModelForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16,).cuda()
             model = AutoModelForCausalLM.from_pretrained(model_path).cuda()

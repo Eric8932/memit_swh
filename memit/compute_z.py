@@ -38,7 +38,7 @@ def compute_z(
 
     # Tokenize target into list of int token IDs--只有一条
     #开头还是空格
-    if 'llama' in tok.name_or_path:#去掉开头的空格和1
+    if 'gpt-j' not in tok.name_or_path:#去掉开头的空格和1
         target_ids = tok(request["target_new"]["str"], return_tensors="pt").to("cuda")[
             "input_ids"
         ][0][2:]
@@ -93,7 +93,7 @@ def compute_z(
     # Set up an optimization over a latent vector that, when output at the
     # rewrite layer, i.e. hypothesized fact lookup location, will induce the
     # target token to be predicted at the final layer.
-    if 'llama' in tok.name_or_path:
+    if 'gpt-j' not in tok.name_or_path:
         delta = torch.zeros((model.config.hidden_size,), requires_grad=True, device="cuda")#只针对单层的W_out的输出激活值，零初始化
     else:
         delta = torch.zeros((model.config.n_embd,), requires_grad=True, device="cuda")#只针对单层的W_out的输出激活值，零初始化

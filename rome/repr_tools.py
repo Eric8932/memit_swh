@@ -73,7 +73,7 @@ def get_words_idxs_in_templates(
     assert len(prefixes) == len(words) == len(suffixes)
     n = len(prefixes)
     batch_tok = tok([*prefixes, *words, *suffixes])
-    if 'llama' in tok.name_or_path:
+    if 'gpt-j' not in tok.name_or_path:
         prefixes_len, words_len, suffixes_len = [ 
             [len(el) for el in batch_tok.input_ids[i : i + n]] 
             for i in range(0, n * 3, n) 
@@ -89,7 +89,7 @@ def get_words_idxs_in_templates(
 
     # Compute indices of last tokens
     if subtoken == "last" or subtoken == "first_after_last":
-        if 'llama' in tok.name_or_path:#两个开头都有1，但是因为这是用于索引，所以只去掉一个1.多去掉一个1因为words前面加了一个空格
+        if 'gpt-j' not in tok.name_or_path:#两个开头都有1，但是因为这是用于索引，所以只去掉一个1.多去掉一个1因为words前面加了一个空格
             return [
                 [
                     prefixes_len[i]
