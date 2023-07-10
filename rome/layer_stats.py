@@ -100,7 +100,7 @@ def layer_stats(
             dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
             cache_dir='/apdcephfs/share_1157269/yirenchen/wenhangshi/data_tmp/wikipedia')#github
 
-        if 'llama' in tokenizer.name_or_path:
+        if 'gpt-j' not in tokenizer.name_or_path:
             maxlen = model.config.max_position_embeddings
         else:
             maxlen = model.config.n_positions
@@ -110,7 +110,7 @@ def layer_stats(
 
     # Continue with computation of statistics
     batch_size = 100  # Examine this many dataset texts at once
-    if 'llama' in tokenizer.name_or_path:
+    if 'gpt-j' not in tokenizer.name_or_path:
         npos = model.config.max_position_embeddings
     else:
         npos = model.config.n_positions
