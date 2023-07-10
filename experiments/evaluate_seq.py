@@ -132,7 +132,7 @@ def main(
             tok = LlamaTokenizer.from_pretrained(model_path)
             tok.pad_token = '<unk>'#虽然它是单条tokenize以及评测，但是genearte时会一起tokenize，所以padding还是有用的
             print(f"vocab length={len(tok.get_vocab())}")
-            tok.name_or_path = tok.name_or_path+'llama'
+            # tok.name_or_path = tok.name_or_path+'llama'
         else:#models/gpt-j-6b
             # model = AutoModelForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16,).cuda()
             model = AutoModelForCausalLM.from_pretrained(model_path).cuda()
