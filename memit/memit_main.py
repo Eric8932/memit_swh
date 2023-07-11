@@ -189,8 +189,8 @@ def execute_memit(
         targets = targets.repeat_interleave(repeat_factor, dim=1)#重复到修改个数
 
         # Load covariance matrix
-        # force_recompute = False
-        force_recompute = layer != hparams.layers[0]#只有第一层才算这个，后面的每层都应该用第一层算好的了
+        force_recompute = False
+        # force_recompute = layer != hparams.layers[0]#只有第一层才算这个，后面的每层都应该用第一层算好的了
 
         #每个样本在当前层（fc_out）的，每个非pad/mask的token的输入状态的二阶动量--这个值可以提前算好的，和request无关
         #虽然这个时候model的某些层已经改变了，但是这个东西算一次之后会保存
