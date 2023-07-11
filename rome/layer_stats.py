@@ -99,6 +99,8 @@ def layer_stats(
             ds_name,
             dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
             cache_dir='/apdcephfs/share_1157269/yirenchen/wenhangshi/data_tmp/wikipedia')#github
+        # '/apdcephfs/share_1157269/yirenchen/wenhangshi/data_tmp/wikipedia'
+        # /data/swh/UER/memit/resource/wiki
 
         if 'gpt-j' not in tokenizer.name_or_path:
             maxlen = model.config.max_position_embeddings
@@ -142,6 +144,7 @@ def layer_stats(
             print(f"Unable to download due to {e}. Computing locally....")
 
     ds = get_ds() if not filename.exists() else None
+    print("ds",ds)
 
     if progress is None:
         progress = lambda x: x
@@ -158,6 +161,7 @@ def layer_stats(
         random_sample=1,
         num_workers=2,
     )
+    print("successfully loader")
     batch_count = -(-(sample_size or len(ds)) // batch_size)
     with torch.no_grad():
         for batch_group in progress(loader, total=batch_count):
@@ -171,6 +175,8 @@ def layer_stats(
                 # feats = flatten_masked_batch(tr.output, batch["attention_mask"])
                 feats = feats.to(dtype=dtype)
                 stat.add(feats)#不断计算这个统计量
+    print("stat")
+    print(stat)
     return stat
 
 
