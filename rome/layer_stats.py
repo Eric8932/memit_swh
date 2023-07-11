@@ -144,7 +144,6 @@ def layer_stats(
             print(f"Unable to download due to {e}. Computing locally....")
 
     ds = get_ds() if not filename.exists() else None
-    print("ds",ds)
 
     if progress is None:
         progress = lambda x: x
@@ -161,7 +160,6 @@ def layer_stats(
         random_sample=1,
         num_workers=2,
     )
-    print("successfully loader")
     batch_count = -(-(sample_size or len(ds)) // batch_size)
     with torch.no_grad():
         for batch_group in progress(loader, total=batch_count):
@@ -175,10 +173,7 @@ def layer_stats(
                 # feats = flatten_masked_batch(tr.output, batch["attention_mask"])
                 feats = feats.to(dtype=dtype)
                 stat.add(feats)#不断计算这个统计量
-    print("stat")
-    print(stat)
     return stat
-
 
 if __name__ == "__main__":
     main()
