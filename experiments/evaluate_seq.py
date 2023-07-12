@@ -104,7 +104,8 @@ def main(
             run_id = 0
         run_dir = RESULTS_DIR / dir_name / new_name / f"run_{str(run_id).zfill(3)}"
         run_dir.mkdir(parents=True, exist_ok=True)
-    save_deltas_dir = RESULTS_DIR / dir_name / new_name
+
+    save_deltas_dir = RESULTS_DIR / dir_name / new_name 
     print(f"Results will be stored at {run_dir}")
     print(f"Model deltas be stored at {save_deltas_dir}")
 
@@ -235,7 +236,7 @@ def main(
     loc_exec_time = time()-loc_start
     loc_res['loc_exec_time'] = loc_exec_time
 
-    np.save(save_deltas_dir/("orig_loc.npy"),loc_res)
+    np.save(run_dir/("orig_loc.npy"),loc_res)
 
     afedit_res_list = []
 
@@ -328,82 +329,82 @@ def main(
 
 
         #把编辑过的以及loc全部评估一遍
-        if (edit_num+1)%eval_edited_freq==0:
-            eval_res_list = []
-            for record in edit_record:
-                metrics = {
-                    "case_id": record["case_id"],
-                    "post": ds_eval_method(
-                        model,
-                        tok,
-                        record,
-                        *(
-                            gen_test_vars
-                            if record["case_id"] % generation_test_interval == 0
-                            else [None, None]
-                        ),  # Only test generation every generation_test_interval cases
-                        model_name,
-                        model_path,
-                        new_prompt,
-                    ),
-                }
-                eval_res_list.append(metrics)
-                torch.cuda.empty_cache()
-            out_file_eval = Path(case_result_template.format(num_edits,"eval_"+str(edit_num)))
-            with open(out_file_eval, "w") as f:
-                json.dump(eval_res_list, f, indent=1)
+        # if (edit_num+1)%eval_edited_freq==0:
+        #     eval_res_list = []
+        #     for record in edit_record:
+        #         metrics = {
+        #             "case_id": record["case_id"],
+        #             "post": ds_eval_method(
+        #                 model,
+        #                 tok,
+        #                 record,
+        #                 *(
+        #                     gen_test_vars
+        #                     if record["case_id"] % generation_test_interval == 0
+        #                     else [None, None]
+        #                 ),  # Only test generation every generation_test_interval cases
+        #                 model_name,
+        #                 model_path,
+        #                 new_prompt,
+        #             ),
+        #         }
+        #         eval_res_list.append(metrics)
+        #         torch.cuda.empty_cache()
+        #     out_file_eval = Path(case_result_template.format(num_edits,"eval_"+str(edit_num)))
+        #     with open(out_file_eval, "w") as f:
+        #         json.dump(eval_res_list, f, indent=1)
 
-            loc_start= time()
-            if args.ds_name == 'zsre':
-                equal_list = []#每一个样本只有一个acc，也只有一个结果要看
-                for record in ds_loc:
-                    res= ds_eval_loc(
-                        model,
-                        tok,
-                        record,
-                        *(
-                            gen_test_vars
-                            if record["case_id"] % generation_test_interval == 0
-                            else [None, None]
-                        ),  # Only test generation every generation_test_interval cases
-                        model_name,
-                        model_path,
-                        new_prompt,
-                    )
-                    equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
-                    torch.cuda.empty_cache()
-                loc_res = {}
-                loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-            else:
-                equal_list = []
-                ngram_entropy_list=[]
-                reference_score_list = []
-                for record in ds_loc:
-                    res= ds_eval_loc(
-                        model,
-                        tok,
-                        record,
-                        *(
-                            gen_test_vars
-                            if record["case_id"] % generation_test_interval == 0
-                            else [None, None]
-                        ),  # Only test generation every generation_test_interval cases
-                        model_name,
-                        model_path,
-                        new_prompt,
-                    )
-                    equal_list+=[r[1] for r in res["loc_predin_true"]]
-                    ngram_entropy_list.append(res["ngram_entropy"])
-                    reference_score_list.append(res["reference_score"])
-                    torch.cuda.empty_cache()
-                loc_res = {}
-                loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-                loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
-                loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
-            loc_exec_time = time()-loc_start
-            loc_res['loc_exec_time'] = loc_exec_time
+        #     loc_start= time()
+        #     if args.ds_name == 'zsre':
+        #         equal_list = []#每一个样本只有一个acc，也只有一个结果要看
+        #         for record in ds_loc:
+        #             res= ds_eval_loc(
+        #                 model,
+        #                 tok,
+        #                 record,
+        #                 *(
+        #                     gen_test_vars
+        #                     if record["case_id"] % generation_test_interval == 0
+        #                     else [None, None]
+        #                 ),  # Only test generation every generation_test_interval cases
+        #                 model_name,
+        #                 model_path,
+        #                 new_prompt,
+        #             )
+        #             equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
+        #             torch.cuda.empty_cache()
+        #         loc_res = {}
+        #         loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+        #     else:
+        #         equal_list = []
+        #         ngram_entropy_list=[]
+        #         reference_score_list = []
+        #         for record in ds_loc:
+        #             res= ds_eval_loc(
+        #                 model,
+        #                 tok,
+        #                 record,
+        #                 *(
+        #                     gen_test_vars
+        #                     if record["case_id"] % generation_test_interval == 0
+        #                     else [None, None]
+        #                 ),  # Only test generation every generation_test_interval cases
+        #                 model_name,
+        #                 model_path,
+        #                 new_prompt,
+        #             )
+        #             equal_list+=[r[1] for r in res["loc_predin_true"]]
+        #             ngram_entropy_list.append(res["ngram_entropy"])
+        #             reference_score_list.append(res["reference_score"])
+        #             torch.cuda.empty_cache()
+        #         loc_res = {}
+        #         loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+        #         loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
+        #         loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
+        #     loc_exec_time = time()-loc_start
+        #     loc_res['loc_exec_time'] = loc_exec_time
 
-            np.save(save_deltas_dir/("loc_"+str(edit_num)+".npy"),loc_res)
+        #     np.save(save_deltas_dir/("loc_"+str(edit_num)+".npy"),loc_res)
 
     #保存每天样本编辑后的结果的列表
     out_file_afedit = Path(case_result_template.format(num_edits,"per_afedit"))
@@ -487,15 +488,16 @@ def main(
     loc_exec_time = time()-loc_start
     loc_res['loc_exec_time'] = loc_exec_time
 
-    np.save(save_deltas_dir/("final_loc.npy"),loc_res)
+    np.save(run_dir/("final_loc.npy"),loc_res)
 
 
     
     #保存不断累积的变化量（+）
     np.save(save_deltas_dir/("deltas_seq.npy"),acc_delta)
     #保存没被edit的record pass_record["case_id"]=pass_record["requested_rewrite"]
-    np.save(save_deltas_dir/("passrecord_"+str(num_edits)+".npy"),pass_record)
-    np.save(save_deltas_dir/("editedcord_"+str(num_edits)+".npy"),edited_record)
+    np.save(run_dir/("passrecord_"+str(num_edits)+".npy"),pass_record)
+    np.save(run_dir/("editedcord_"+str(num_edits)+".npy"),edited_record)
+    print(f"Results are saved in {run_dir}")
 
 
 def window(seq, n=2):
