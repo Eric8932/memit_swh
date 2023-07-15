@@ -1,7 +1,7 @@
 # coding=utf-8
 
 CUDA_VISIBLE_DEVICES=0 python3 main.py \
---model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
+--model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit_swh/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
 --model memit \
 --tasks boolq,piqa,hellaswag,winogrande,arc_easy,arc_challenge,triviaqa,race,gsm8k,crows_pairs_english_gender,crows_pairs_english_religion,crows_pairs_english_race_color,crows_pairs_english_age,crows_pairs_english_disability,crows_pairs_english_nationality,crows_pairs_english_physical_appearance,crows_pairs_english_sexual_orientation,crows_pairs_english_socioeconomic,toxigen \
 --device cuda:0 \
@@ -9,21 +9,21 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py \
 
 
 CUDA_VISIBLE_DEVICES=0 python3 main.py \
---model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
+--model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit_swh/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
 --model memit \
 --tasks gsm8k \
 --device cuda:0 --num_fewshot 8 \
 --output_path results/gptj_mcf_10000_seq/gsm8k_8shot.json;
 
 CUDA_VISIBLE_DEVICES=0 python3 main.py \
---model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
+--model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit_swh/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
 --model memit \
 --tasks hendrycksTest-abstract_algebra,hendrycksTest-anatomy,hendrycksTest-astronomy,hendrycksTest-business_ethics,hendrycksTest-clinical_knowledge,hendrycksTest-college_biology,hendrycksTest-college_chemistry,hendrycksTest-college_computer_science,hendrycksTest-college_mathematics,hendrycksTest-college_medicine,hendrycksTest-college_physics,hendrycksTest-computer_security,hendrycksTest-conceptual_physics,hendrycksTest-econometrics,hendrycksTest-electrical_engineering,hendrycksTest-elementary_mathematics,hendrycksTest-formal_logic,hendrycksTest-global_facts,hendrycksTest-high_school_biology,hendrycksTest-high_school_chemistry,hendrycksTest-high_school_computer_science,hendrycksTest-high_school_european_history,hendrycksTest-high_school_geography,hendrycksTest-high_school_government_and_politics,hendrycksTest-high_school_macroeconomics,hendrycksTest-high_school_mathematics,hendrycksTest-high_school_microeconomics,hendrycksTest-high_school_physics,hendrycksTest-high_school_psychology,hendrycksTest-high_school_statistics,hendrycksTest-high_school_us_history,hendrycksTest-high_school_world_history,hendrycksTest-human_aging,hendrycksTest-human_sexuality,hendrycksTest-international_law,hendrycksTest-jurisprudence,hendrycksTest-logical_fallacies,hendrycksTest-machine_learning,hendrycksTest-management,hendrycksTest-marketing,hendrycksTest-medical_genetics,hendrycksTest-miscellaneous,hendrycksTest-moral_disputes,hendrycksTest-moral_scenarios,hendrycksTest-nutrition,hendrycksTest-philosophy,hendrycksTest-prehistory,hendrycksTest-professional_accounting,hendrycksTest-professional_law,hendrycksTest-professional_medicine,hendrycksTest-professional_psychology,hendrycksTest-public_relations,hendrycksTest-security_studies,hendrycksTest-sociology,hendrycksTest-us_foreign_policy,hendrycksTest-virology,hendrycksTest-world_religions \
 --device cuda:0 --num_fewshot 5 \
 --output_path results/gptj_mcf_10000_seq/mmlu_5shot.json;
 
 CUDA_VISIBLE_DEVICES=0 python3 main.py \
---model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
+--model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit_swh/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
 --model memit \
 --tasks math_algebra,math_counting_and_prob,math_geometry,math_intermediate_algebra,math_num_theory,math_prealgebra,math_precalc \
 --device cuda:0  \
@@ -31,7 +31,7 @@ CUDA_VISIBLE_DEVICES=0 python3 main.py \
 
 
 CUDA_VISIBLE_DEVICES=0 python3 main.py \
---model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
+--model_args "pretrained=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/,dtype='float16',revision='float16',delta_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/memit_swh/results/MEMIT/gpt-j-6B_mcf_10000_newprompt_seq" \
 --model memit \
 --tasks math_algebra,math_counting_and_prob,math_geometry,math_intermediate_algebra,math_num_theory,math_prealgebra,math_precalc \
 --device cuda:0  --num_fewshot 5 \
