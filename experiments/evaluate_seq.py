@@ -329,30 +329,30 @@ def main(
 
 
         #把编辑过的以及loc全部评估一遍
-        # if (edit_num+1)%eval_edited_freq==0:
-        #     eval_res_list = []
-        #     for record in edit_record:
-        #         metrics = {
-        #             "case_id": record["case_id"],
-        #             "post": ds_eval_method(
-        #                 model,
-        #                 tok,
-        #                 record,
-        #                 *(
-        #                     gen_test_vars
-        #                     if record["case_id"] % generation_test_interval == 0
-        #                     else [None, None]
-        #                 ),  # Only test generation every generation_test_interval cases
-        #                 model_name,
-        #                 model_path,
-        #                 new_prompt,
-        #             ),
-        #         }
-        #         eval_res_list.append(metrics)
-        #         torch.cuda.empty_cache()
-        #     out_file_eval = Path(case_result_template.format(num_edits,"eval_"+str(edit_num)))
-        #     with open(out_file_eval, "w") as f:
-        #         json.dump(eval_res_list, f, indent=1)
+        if (edit_num+1)%eval_edited_freq==0:
+            eval_res_list = []
+            for record in edit_record:
+                metrics = {
+                    "case_id": record["case_id"],
+                    "post": ds_eval_method(
+                        model,
+                        tok,
+                        record,
+                        *(
+                            gen_test_vars
+                            if record["case_id"] % generation_test_interval == 0
+                            else [None, None]
+                        ),  # Only test generation every generation_test_interval cases
+                        model_name,
+                        model_path,
+                        new_prompt,
+                    ),
+                }
+                eval_res_list.append(metrics)
+                torch.cuda.empty_cache()
+            out_file_eval = Path(case_result_template.format(num_edits,"eval_"+str(edit_num)))
+            with open(out_file_eval, "w") as f:
+                json.dump(eval_res_list, f, indent=1)
 
         #     loc_start= time()
         #     if args.ds_name == 'zsre':
