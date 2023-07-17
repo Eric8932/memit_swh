@@ -230,6 +230,7 @@ class HuggingFaceAutoLM(BaseLM):
                 w = nethook.get_parameter(model, w_name)#返回对应的参数
                 upd_matrix = upd_matrix_match_shape(upd_matrix.to('cuda'), w.shape)
                 w[...] += upd_matrix.float()
+        model = model.to('cuda')
         return model
 
 
