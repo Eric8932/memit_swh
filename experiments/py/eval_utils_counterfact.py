@@ -319,9 +319,9 @@ def test_generation(
         "text": gen_texts,
     }
     #计算生成essence_texts的困惑度，但好像也没有用到
-    if len(essence_texts) > 0:
-        ppl = perplexity(model, tok, " ".join(essence_texts), max_input_length=100)
-        ret.update({"essence_score": ppl, "essence_text": essence_texts})
+    # if len(essence_texts) > 0:
+    #     ppl = perplexity(model, tok, " ".join(essence_texts), max_input_length=100)
+    #     ret.update({"essence_score": ppl, "essence_text": essence_texts})
 
     return ret
 
