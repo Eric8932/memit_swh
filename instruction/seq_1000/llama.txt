@@ -6,7 +6,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq \
     --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
     --hparams_fname=llama_7b.json \
     --num_edits=1000 \
-    --dataset_size_limit=1000 --ds_name zsre --eval_edited_freq 200 --loc_data_size 100000 --new_prompt;
+    --dataset_size_limit=1000 --ds_name zsre --eval_edited_freq 300 --loc_data_size 10000 --new_prompt;
 
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq \
     --alg_name=MEMIT \
@@ -14,4 +14,4 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq \
     --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
     --hparams_fname=llama_7b.json \
     --num_edits=1000 \
-    --dataset_size_limit=1000 --ds_name mcf --eval_edited_freq 200 --loc_data_size 100000 --new_prompt;
+    --dataset_size_limit=1000 --ds_name mcf --eval_edited_freq 300 --loc_data_size 10000 --new_prompt;
