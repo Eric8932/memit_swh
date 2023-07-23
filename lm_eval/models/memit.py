@@ -197,7 +197,7 @@ class HuggingFaceAutoLM(BaseLM):
         delta_path:str = None,
     ) -> transformers.AutoModel:
         """Returns a pre-trained pytorch model from a pre-trained model configuration."""
-        if "llama" in pretrained or "vicuna" in pretrained:
+        if 'snapshots' not in pretrained:
             model = LlamaForCausalLM.from_pretrained(
                 pretrained,
                 revision=revision + ("/" + subfolder if subfolder is not None else ""),
