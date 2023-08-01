@@ -199,42 +199,44 @@ def compute_loc_counterfact(
     use_llama = False
     if model_name in ['llama','vicuna']:
         use_llama = True
-    probs, targets_correct = test_batch_prediction(
-        model,
-        tok,
-        list(chain(*prob_prompts)),
-        list(chain(*which_correct)),#flatten了
-        target_new["str"],
-        target_true["str"],
-        use_llama,
-    )#返回prompt分别拼接target_new/true的预测概率--字典列表，以及预测正确对应的列表
 
-    # Unflatten the results again into a list of lists.
-    cutoffs = [0] + np.cumsum(list(map(len, prob_prompts))).tolist()#np.cumsum(1,2,n)
-    #再重新按照prompt, rephrase, ntighbor拼成一个列表
-    ret_probs = [probs[cutoffs[i - 1] : cutoffs[i]] for i in range(1, len(cutoffs))]
-    ret_corrects = [
-        targets_correct[cutoffs[i - 1] : cutoffs[i]] for i in range(1, len(cutoffs))
-    ]
-    # Structure the restuls as a dictionary.
-    ret = {
-        f"{key}_probs": ret_probs[i]
-        for i, key in enumerate(
-            [
-                "neighborhood_prompts",
-            ]
-        )
-    } 
-    ret2 = {
-        f"{key}_correct": ret_corrects[i]
-        for i, key in enumerate(
-            [
-                "neighborhood_prompts",
-            ]
-        )
-    }
-    ret.update(ret2)
+    # probs, targets_correct = test_batch_prediction(
+    #     model,
+    #     tok,
+    #     list(chain(*prob_prompts)),
+    #     list(chain(*which_correct)),#flatten了
+    #     target_new["str"],
+    #     target_true["str"],
+    #     use_llama,
+    # )#返回prompt分别拼接target_new/true的预测概率--字典列表，以及预测正确对应的列表
 
+    # # Unflatten the results again into a list of lists.
+    # cutoffs = [0] + np.cumsum(list(map(len, prob_prompts))).tolist()#np.cumsum(1,2,n)
+    # #再重新按照prompt, rephrase, ntighbor拼成一个列表
+    # ret_probs = [probs[cutoffs[i - 1] : cutoffs[i]] for i in range(1, len(cutoffs))]
+    # ret_corrects = [
+    #     targets_correct[cutoffs[i - 1] : cutoffs[i]] for i in range(1, len(cutoffs))
+    # ]
+    # # Structure the restuls as a dictionary.
+    # ret = {
+    #     f"{key}_probs": ret_probs[i]
+    #     for i, key in enumerate(
+    #         [
+    #             "neighborhood_prompts",
+    #         ]
+    #     )
+    # } 
+    # ret2 = {
+    #     f"{key}_correct": ret_corrects[i]
+    #     for i, key in enumerate(
+    #         [
+    #             "neighborhood_prompts",
+    #         ]
+    #     )
+    # }
+    # ret.update(ret2)
+
+    ret = {}
     inp_predin_prompt = list(chain(*prob_prompts))
     predin_ans_true = [target_true['str']]*len(neighborhood_prompts)
     predin_ans_new = [target_new['str']]*len(neighborhood_prompts)

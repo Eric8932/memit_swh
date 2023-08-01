@@ -194,21 +194,22 @@ def compute_loc_zsre(
     if model_name in ['llama','vicuna']:
         use_llama = True
    
-
-    # Predict for neighborhood prompts (dictionary format).已经是构造成如上形式：prompt和target拼接，以及prompt
-    neighborhood_correct = test_batch_prediction_acc(
-        model,
-        tok,
-        [
-            el["prompt"]
-            for el in neighborhood_prompts
-        ],
-        [el["target"] for el in neighborhood_prompts],#提前准备好的target的逐一拼接token的序列
-        use_llama
-    )
-
     ret = {}
-    ret["neighborhood_prompts_correct"] = neighborhood_correct
+    # Predict for neighborhood prompts (dictionary format).已经是构造成如上形式：prompt和target拼接，以及prompt
+    #其实不需要这个东西
+    # neighborhood_correct = test_batch_prediction_acc(
+    #     model,
+    #     tok,
+    #     [
+    #         el["prompt"]
+    #         for el in neighborhood_prompts
+    #     ],
+    #     [el["target"] for el in neighborhood_prompts],#提前准备好的target的逐一拼接token的序列
+    #     use_llama
+    # )
+
+    
+    # ret["neighborhood_prompts_correct"] = neighborhood_correct
 
     #分别是prompt rephrase和neighborhhood，都是list形式的。前两个对应同一个target，loc有自己的target
     #直接generate，看生成是否包含target
@@ -310,6 +311,8 @@ def test_batch_prediction_acc(model, tok, prompts: typing.List[str], target,use_
         ][:,1:]#llama开头会有一个bos
         # Temporary hack to deal with foreign characters.
         correct_id = correct_id[:, 0].squeeze()#虽然target token此时应该也只有一个
+
+    return (ans == correct_id).detach().cpu().numpy().tolist()
             #看能预测对几个, T/F列表。只针对最后一个位置的预. 对于一个prompt+target，会有很多个预测？ 看看保存的是不是列表就知道了
     # else:#不用上面那个，因为我是left_pad，不能用attention_mask的加和找最后一个位置
     #     pred = model.generate(
