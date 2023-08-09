@@ -257,8 +257,7 @@ def main(
             continue
 
         real_edit_num+=1
-        if real_edit:
-            if real_edit_num > num_edits:
+        if real_edit and real_edit_num > num_edits:
                 break
             
         edited_record[record["case_id"]]=record["requested_rewrite"]
