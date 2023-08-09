@@ -66,6 +66,8 @@ def main(
     model_path = None,
     eval_edited_freq=50,
     loc_data_size=100,
+    orig_loc = True,
+    real_edit = False,
 ):
     # Set algorithm-specific variables
     params_class, apply_algo = ALG_DICT[alg_name]#超参数和应用的算法
@@ -79,6 +81,9 @@ def main(
         new_name += "_zeroshot"
     if new_prompt:
         new_name += '_newprompt'
+    if real_edit:
+        new_name += '_real'
+
     new_name += '_seq'
 
     # Determine run directory
@@ -186,60 +191,62 @@ def main(
     case_result_template = str(run_dir / "{}_{}.json")
     gen_test_vars = [snips, vec]#计算fluency和consistency
 
-    loc_start = time()
-    if args.ds_name == 'zsre':
-        equal_list = []#每一个样本只有一个acc，也只有一个结果要看
-        for record in ds_loc:
-            res= ds_eval_loc(
-                model,
-                tok,
-                record,
-                *(
-                    gen_test_vars
-                    if record["case_id"] % generation_test_interval == 0
-                    else [None, None]
-                ),  # Only test generation every generation_test_interval cases
-                model_name,
-                model_path,
-                new_prompt,
-            )
-            equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
-            torch.cuda.empty_cache()
-        loc_res = {}
-        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-    else:
-        equal_list = []
-        ngram_entropy_list=[]
-        reference_score_list = []
-        for record in ds_loc:
-            res= ds_eval_loc(
-                model,
-                tok,
-                record,
-                *(
-                    gen_test_vars
-                    if record["case_id"] % generation_test_interval == 0
-                    else [None, None]
-                ),  # Only test generation every generation_test_interval cases
-                model_name,
-                model_path,
-                new_prompt,
-            )
-            equal_list+=[r[1] for r in res["loc_predin_true"]]
-            ngram_entropy_list.append(res["ngram_entropy"])
-            reference_score_list.append(res["reference_score"])
-            torch.cuda.empty_cache()
-        loc_res = {}
-        loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-        loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
-        loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
-    loc_exec_time = time()-loc_start
-    loc_res['loc_exec_time'] = loc_exec_time
+    if orig_loc:
+        loc_start = time()
+        if args.ds_name == 'zsre':
+            equal_list = []#每一个样本只有一个acc，也只有一个结果要看
+            for record in ds_loc:
+                res= ds_eval_loc(
+                    model,
+                    tok,
+                    record,
+                    *(
+                        gen_test_vars
+                        if record["case_id"] % generation_test_interval == 0
+                        else [None, None]
+                    ),  # Only test generation every generation_test_interval cases
+                    model_name,
+                    model_path,
+                    new_prompt,
+                )
+                equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
+                torch.cuda.empty_cache()
+            loc_res = {}
+            loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+        else:
+            equal_list = []
+            ngram_entropy_list=[]
+            reference_score_list = []
+            for record in ds_loc:
+                res= ds_eval_loc(
+                    model,
+                    tok,
+                    record,
+                    *(
+                        gen_test_vars
+                        if record["case_id"] % generation_test_interval == 0
+                        else [None, None]
+                    ),  # Only test generation every generation_test_interval cases
+                    model_name,
+                    model_path,
+                    new_prompt,
+                )
+                equal_list+=[r[1] for r in res["loc_predin_true"]]
+                ngram_entropy_list.append(res["ngram_entropy"])
+                reference_score_list.append(res["reference_score"])
+                torch.cuda.empty_cache()
+            loc_res = {}
+            loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
+            loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
+            loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
+        loc_exec_time = time()-loc_start
+        loc_res['loc_exec_time'] = loc_exec_time
 
-    np.save(run_dir/("orig_loc.npy"),loc_res)
+        np.save(run_dir/("orig_loc.npy"),loc_res)
 
     afedit_res_list = []
 
+    real_edit_num = 0
     for record_chunks in chunks(ds, 1):#每一次都更新1个
         #更新前判断是否应该更新
         record = record_chunks[0]
@@ -248,6 +255,12 @@ def main(
             print("record has already success and pass")
             pass_record[record["case_id"]]=record["requested_rewrite"]
             continue
+
+        real_edit_num+=1
+        if real_edit:
+            if real_edit_num > num_edits:
+                break
+            
         edited_record[record["case_id"]]=record["requested_rewrite"]
 
         # Compute weight changes + record weights that changed
@@ -634,6 +647,17 @@ if __name__ == "__main__":
         default=100,
         help="Size for loc data",
     )
+
+    parser.add_argument(
+        "--orig_loc",
+        action="store_false",
+        help="Whether compute loc before editing",
+    )
+    parser.add_argument(
+        "--real_edit",
+        action="store_true",
+        help="num_edits = the real editing sample number",
+    )
     parser.set_defaults(skip_generation_tests=False, conserve_memory=False)
     args = parser.parse_args()
 
@@ -657,4 +681,6 @@ if __name__ == "__main__":
         model_path = args.model_path,
         eval_edited_freq = args.eval_edited_freq,
         loc_data_size = args.loc_data_size,
+        orig_loc = args.orig_loc,
+        real_edit= args.real_edit
     )
