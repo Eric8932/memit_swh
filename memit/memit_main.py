@@ -226,7 +226,8 @@ def execute_memit(
             else hparams.mom2_n_samples // 10,
             hparams.mom2_dtype,#float32
             force_recompute=force_recompute,
-            last_requests = last_requests
+            last_requests = last_requests,
+            c_noupt = c_noupt,
         )
 
         # Compute update in double precision
