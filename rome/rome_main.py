@@ -129,7 +129,7 @@ def execute_rome(
         left_vector: torch.Tensor = (
             left_vector
             if left_vector is not None
-            else compute_u(
+            else compute_u(#C_inverse*k_*
                 model,
                 tok,
                 request,

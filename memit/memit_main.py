@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from rome.layer_stats import layer_stats
+from rome.layer_stats import layer_stats,layer_stats_added
 from util import nethook
 from util.generate import generate_fast
 from util.globals import *
@@ -32,6 +32,8 @@ def apply_memit_to_model(#方法
     copy=False, #zsre-False
     return_orig_weights=False, #zsre-True
     cache_template: Optional[str] = None,#存放kv对的地址。先计算kv对，才能计算
+    last_requests = None,
+    c_noupt = False,
 ) -> Tuple[AutoModelForCausalLM, Dict[str, Any]]:
     """
     Returns a model with the desired changes.
@@ -44,7 +46,7 @@ def apply_memit_to_model(#方法
     if copy:
         model = deepcopy(model)
 
-    deltas = execute_memit(model, tok, requests, hparams, cache_template=cache_template)#每一层的变化量（critical layers的W_out）
+    deltas = execute_memit(model, tok, requests, hparams, cache_template=cache_template,last_requests=last_requests,c_noupt=c_noupt)#每一层的变化量（critical layers的W_out）
 
     with torch.no_grad():
         for w_name, (key_mat, val_mat) in deltas.items():
@@ -69,6 +71,8 @@ def execute_memit(
     requests: List[Dict],
     hparams: MEMITHyperParams,
     cache_template: Optional[str] = None,
+    last_requests = None,
+    c_noupt = False#如果为True，就在更新前把所有层的C都算出来
 ) -> Dict[str, Tuple[torch.Tensor]]:
     """
     Executes the MEMIT update algorithm for the specified update at the specified layer
@@ -161,6 +165,24 @@ def execute_memit(
     zs = torch.stack(z_list, dim=1)#构成矩阵的形式，不同request对应的值不同
     print("zs_shape",zs.shape)
 
+
+    if c_noupt:#不随着层变化的更新而更新，在更新前提前算好所有的C。两个模型都用，因为还涉及c_adapt
+        for i, layer in enumerate(hparams.layers):
+            cov = get_cov(#随机采样输入计算原来W_out对应的K矩阵，用wikipedia采样10w条。而且针对当前层的fc_out的输入状态
+                model,
+                tok,
+                hparams.rewrite_module_tmp.format(layer),
+                hparams.mom2_dataset,
+                hparams.mom2_n_samples,
+                hparams.mom2_dtype,#float32
+                force_recompute=False,
+                last_requests = last_requests,
+                c_noupt = c_noupt,
+            )
+            cov.cpu()
+            del cov
+
+
     #不同层的修改会叠加，导致每一次计算的layer_ks和targets其实都不同
     for i, layer in enumerate(hparams.layers):
         print(f"\n\nLAYER {layer}\n")
@@ -192,8 +214,8 @@ def execute_memit(
         force_recompute = False
         # force_recompute = layer != hparams.layers[0]#只有第一层才算这个，后面的每层都应该用第一层算好的了
 
-        #每个样本在当前层（fc_out）的，每个非pad/mask的token的输入状态的二阶动量--这个值可以提前算好的，和request无关
-        #虽然这个时候model的某些层已经改变了，但是这个东西算一次之后会保存
+        #每个样本在当前层（fc_out）的，每个非pad/mask的token的输入状态的二阶动量
+        #虽然会保存，但是保存的也是更新后的版本
         cov = get_cov(#随机采样输入计算原来W_out对应的K矩阵，用wikipedia采样10w条。而且针对当前层的fc_out的输入状态
             model,
             tok,
@@ -202,8 +224,9 @@ def execute_memit(
             hparams.mom2_n_samples
             if not force_recompute
             else hparams.mom2_n_samples // 10,
-            hparams.mom2_dtype,
+            hparams.mom2_dtype,#float32
             force_recompute=force_recompute,
+            last_requests = last_requests
         )
 
         # Compute update in double precision
@@ -266,8 +289,10 @@ def get_cov(
     mom2_dataset: str,
     mom2_n_samples: str,
     mom2_dtype: str,
-    inv: bool = False,
+    inv: bool = False,#默认就是false
     force_recompute: bool = False,
+    last_requests = None,
+    c_noupt = False,
 ) -> torch.Tensor:
     """
     Retrieves covariance statistics, then computes the algebraic inverse.
@@ -278,8 +303,25 @@ def get_cov(
     key = (model_name, layer_name)
 
     print(f"Retrieving covariance statistics for {model_name} @ {layer_name}.")
-    if key not in COV_CACHE or force_recompute:
-        stat = layer_stats(
+    if last_requests is None:
+        if key not in COV_CACHE or force_recompute:
+            stat = layer_stats(##GPTJ默认使用给定的C，只有LLaMA且c_noupt=True才会
+                model,
+                tok,
+                layer_name,
+                STATS_DIR,
+                mom2_dataset,
+                to_collect=["mom2"],
+                sample_size=mom2_n_samples,
+                precision=mom2_dtype,
+                force_recompute=force_recompute,
+                c_noupt = c_noupt,
+            )
+            # COV_CACHE[key] = stat.mom2.moment().float().to("cpu")
+            stat.cpu_()
+            COV_CACHE[key] = stat
+    else:
+        stat = layer_stats_added(
             model,
             tok,
             layer_name,
@@ -288,12 +330,13 @@ def get_cov(
             to_collect=["mom2"],
             sample_size=mom2_n_samples,
             precision=mom2_dtype,
-            force_recompute=force_recompute,
+            old_stat=COV_CACHE[key],
+            last_requests=last_requests,
         )
-        COV_CACHE[key] = stat.mom2.moment().float().to("cpu")
-
+        stat.cpu_()
+        COV_CACHE[key] = stat
     return (
-        torch.inverse(COV_CACHE[key].to("cuda")) if inv else COV_CACHE[key].to("cuda")
+        torch.inverse(COV_CACHE[key].mom2.moment().float().to("cuda")) if inv else COV_CACHE[key].mom2.moment().float().to("cuda")
     )
 
 

@@ -68,6 +68,8 @@ def main(
     loc_data_size=100,
     orig_loc = True,
     real_edit = False,
+    c_noupt = False,
+    c_adapt = False,
 ):
     # Set algorithm-specific variables
     params_class, apply_algo = ALG_DICT[alg_name]#超参数和应用的算法
@@ -83,6 +85,10 @@ def main(
         new_name += '_newprompt'
     if real_edit:
         new_name += '_real'
+    if c_noupt:
+        new_name += '_cnoupt'
+    if c_adapt:
+        new_name += '_cadapt'
 
     new_name += '_seq'
 
@@ -247,6 +253,7 @@ def main(
     afedit_res_list = []
 
     real_edit_num = 0
+    last_records = None
     for record_chunks in chunks(ds, 1):#每一次都更新1个
         #更新前判断是否应该更新
         record = record_chunks[0]
@@ -283,9 +290,16 @@ def main(
             hparams,
             copy=False,
             return_orig_weights=True,
+            last_requests = last_records,
+            c_noupt = c_noupt,
             **args_conserve_memory,
             **etc_args,#保存的事先计算好的kv对的地址，但是应该还没算出来
         )
+        if c_adapt:
+            last_records = [
+                record["requested_rewrite"]["prompt"].format(record["requested_rewrite"]['subject']) +" "+ record["requested_rewrite"]["target_new"]["str"]
+                for record in record_chunks
+                ]
         exec_time = time() - start
         print("Execution took", exec_time)
         if acc_delta is None:
@@ -657,6 +671,18 @@ if __name__ == "__main__":
         action="store_true",
         help="num_edits = the real editing sample number",
     )
+
+    parser.add_argument(
+        "--c_noupt",
+        action="store_true",
+        help="Using the calculated C in default, which is updated along the editing",#默认为false，使用不断更新的版本
+    )
+    parser.add_argument(
+        "--c_adapt",
+        action="store_true",
+        help="adpat c to the edited requests",#默认为false，使用不断更新的版本
+    )
+
     parser.set_defaults(skip_generation_tests=False, conserve_memory=False)
     args = parser.parse_args()
 
@@ -681,5 +707,7 @@ if __name__ == "__main__":
         eval_edited_freq = args.eval_edited_freq,
         loc_data_size = args.loc_data_size,
         orig_loc = args.orig_loc,
-        real_edit= args.real_edit
+        real_edit= args.real_edit,
+        c_noupt = args.c_noupt,
+        c_adapt= args.c_adapt
     )

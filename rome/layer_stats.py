@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 import torch
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import datasets
@@ -89,6 +89,7 @@ def layer_stats(
     download=True,
     progress=tqdm,
     force_recompute=False,
+    c_noupt = False,
 ):
     """
     Function to load or compute cached stats.
@@ -128,7 +129,10 @@ def layer_stats(
         model_name = model.config._name_or_path.replace("/", "_")
 
     stats_dir = Path(stats_dir)
-    file_extension = f"{model_name}/{ds_name}_stats/{layer_name}_{precision}_{'-'.join(sorted(to_collect))}{size_suffix}.npz"
+    if c_noupt and 'gpt-j' not in tokenizer.name_or_path:
+        file_extension = f"{model_name}/{ds_name}_stats/{layer_name}_{precision}_{'-'.join(sorted(to_collect))}{size_suffix}_noupt.npz"
+    else:
+        file_extension = f"{model_name}/{ds_name}_stats/{layer_name}_{precision}_{'-'.join(sorted(to_collect))}{size_suffix}.npz"
     filename = stats_dir / file_extension
 
     if not filename.exists() and download:
@@ -175,5 +179,99 @@ def layer_stats(
                 stat.add(feats)#不断计算这个统计量
     return stat
 
+def layer_stats_added(
+    model,
+    tokenizer,
+    layer_name,
+    stats_dir,
+    ds_name,
+    to_collect,
+    sample_size=None,
+    precision=None,
+    batch_tokens=None,
+    progress=tqdm,
+    old_stat = None,
+    last_requests = None,
+):
+    """
+    Function to load or compute cached stats.
+    """
+
+    def get_ds_requests(requests):
+
+        if 'gpt-j' not in tokenizer.name_or_path:
+            maxlen = model.config.max_position_embeddings
+        else:
+            maxlen = model.config.n_positions
+        if batch_tokens is not None and batch_tokens < maxlen:
+            maxlen = batch_tokens
+        data = {
+            "id": list(range(1, 1+len(requests))),  # IDs from 1 to 10
+            "text": requests  # Your texts
+            }
+
+        r_data = Dataset.from_dict(data)
+        return TokenizedDataset(r_data, tokenizer, maxlen=maxlen)
+
+    # Continue with computation of statistics
+    batch_size = len(last_requests) if len(last_requests) <100 else 100  # Examine this many dataset texts at once
+    if 'gpt-j' not in tokenizer.name_or_path:
+        npos = model.config.max_position_embeddings
+    else:
+        npos = model.config.n_positions
+    if batch_tokens is None:
+        batch_tokens = npos * 3  # Sort and divide into batches with this many tokens
+    if precision is None:
+        precision = "float64"
+    dtype = getattr(torch, precision)
+
+    # size_suffix = "" if sample_size is None else f"_{sample_size}"
+    # if batch_tokens < npos:
+    #     size_suffix = "_t{batch_tokens}" + size_suffix
+    # if model_name is None:
+    #     model_name = model.config._name_or_path.replace("/", "_")
+
+    # stats_dir = Path(stats_dir)
+    # file_extension = f"{model_name}/{ds_name}_stats/{layer_name}_{precision}_{'-'.join(sorted(to_collect))}{size_suffix}.npz"
+    # filename = stats_dir / file_extension
+
+    # assert filename.exists()
+
+    ds = get_ds_requests(last_requests)
+
+    if progress is None:
+        progress = lambda x: x
+
+    old_stat.cuda_()
+    stat = old_stat
+    loader = tally(#只计算二阶动量
+        stat,
+        ds,
+        cache=None,
+        sample_size=sample_size,
+        batch_size=batch_size,
+        collate_fn=length_collation(batch_tokens),
+        pin_memory=True,
+        random_sample=1,
+        num_workers=2,
+        store=False,
+    )
+    batch_count = -(-(sample_size or len(ds)) // batch_size)
+    with torch.no_grad():
+        for batch_group in progress(loader, total=batch_count):
+            for batch in batch_group:
+                batch = dict_to_(batch, "cuda")
+                with Trace(
+                    model, layer_name, retain_input=True, retain_output=False, stop=True#获取对应层的输入，并且这个层过完就停止了
+                ) as tr:
+                    model(**batch)
+                feats = flatten_masked_batch(tr.input, batch["attention_mask"])
+                # feats = flatten_masked_batch(tr.output, batch["attention_mask"])
+                feats = feats.to(dtype=dtype)
+                stat.add(feats)#不断计算这个统计量
+    return stat
+
+
 if __name__ == "__main__":
     main()
+

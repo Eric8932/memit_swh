@@ -51,7 +51,7 @@ import torch
 from torch.utils.data.sampler import Sampler
 
 
-def tally(stat, dataset, cache=None, quiet=False, **kwargs):
+def tally(stat, dataset, cache=None, quiet=False, store=True, **kwargs):
     """
     To use tally, write code like the following.
 
@@ -101,6 +101,7 @@ def tally(stat, dataset, cache=None, quiet=False, **kwargs):
     for k in ["sample_size"]:
         if k in kwargs:
             args[k] = kwargs[k]
+    
     cached_state = load_cached_state(cache, args, quiet=quiet)
     if cached_state is not None:
         stat.load_state_dict(cached_state)
@@ -108,18 +109,18 @@ def tally(stat, dataset, cache=None, quiet=False, **kwargs):
         def empty_loader():
             return
             yield
+        if store:
+            return empty_loader()
 
-        return empty_loader()
     loader = make_loader(dataset, **kwargs)
 
-    def wrapped_loader():
+    def wrapped_loader(store):
         yield from loader
         stat.to_(device="cpu")
-        if cache is not None:
+        if cache is not None and store:
             save_cached_state(cache, stat, args)
 
-    return wrapped_loader()
-
+    return wrapped_loader(store)
 
 class cache_load_enabled:
     """

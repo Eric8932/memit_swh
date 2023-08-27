@@ -110,7 +110,7 @@ def execute_ft(
             chunks(texts, hparams.batch_size), chunks(targets, hparams.batch_size)
         ):
             inputs = tok(txt, return_tensors="pt", padding=True).to("cuda")
-            target_ids = tok(tgt, return_tensors="pt", padding=True)["input_ids"].to(
+            target_ids = tok(tgt, return_tensors="pt", padding=True)["input_ids"].to(#batchesize*seq_len
                 "cuda"
             )
             last_token_inds = inputs["attention_mask"].sum(dim=1) - 1
@@ -119,8 +119,9 @@ def execute_ft(
             opt.zero_grad()
             bs = inputs["input_ids"].shape[0]
             probs = torch.nn.functional.log_softmax(
-                model(**inputs).logits[torch.arange(bs), last_token_inds], dim=-1
+                model(**inputs).logits[torch.arange(bs), last_token_inds], dim=-1#只看最后一个预测 batchsize*vocab_size
             )
+            #不是在正常预测LM
             loss = -(torch.gather(probs, 1, target_ids) * loss_mask).sum(
                 1
             ) / loss_mask.sum(1)
