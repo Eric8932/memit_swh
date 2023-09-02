@@ -16,7 +16,10 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from transformers import AutoModelForCausalLM, AutoTokenizer,LlamaTokenizer
 from dsets import AttributeSnippets
 
-#判断是否要编辑
+def lower_and_strip_list(inp):
+    return [i.lower().strip() for i in inp]
+
+#判断是否要编辑--两个数据集通用
 def edit_or_not(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
@@ -25,7 +28,10 @@ def edit_or_not(
     subject, target_new = (#target_true不会用到，因为target_new就是target_true了吧？
         record["requested_rewrite"][x] for x in ["subject", "target_new"]
     )
-    target_new = target_new["str"]
+    special_tokens = [tok.bos_token,tok.eos_token,tok.pad_token,tok.unk_token]
+    target_new = target_new["str"].lower().strip()
+    target_new = normalize_text(target_new,special_tokens)
+    
     rewrite_prompts = [record["requested_rewrite"]["prompt"].format(subject)]#只有一条
     input = tok(rewrite_prompts,return_tensors="pt").to('cuda')
     pred = tok.batch_decode(model.generate(
@@ -34,7 +40,7 @@ def edit_or_not(
             skip_special_tokens=True,pad_token_id=tok.eos_token_id
             )[0][len(rewrite_prompts[0]):]
     
-    special_tokens = [tok.bos_token,tok.eos_token,tok.pad_token,tok.unk_token]
+    
     target_new = normalize_text(target_new.lower().strip(),special_tokens)
     real_pred = normalize_text(pred.lower().strip(),special_tokens)[:len(target_new)]
 
@@ -43,13 +49,13 @@ def edit_or_not(
     else:
         return True
 
-#所有的都评测，每一条都评测    
+#zsre对于当前评测样本以及his的评测（没有loc）
 def compute_rewrite_quality_zsre(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
     record: typing.Dict,
-    snips: AttributeSnippets,
-    vec: TfidfVectorizer,
+    # snips: AttributeSnippets,
+    # vec: TfidfVectorizer,
     model_name = None,
     model_path = None,
     new_prompt=False,#我在zsre数据集处理的时候就做了（zsre.py）
@@ -114,18 +120,19 @@ def compute_rewrite_quality_zsre(
     stuff_probs = test_batch_prediction_acc(model, tok, inp_prompts, inp_targets,use_llama)
 
     # Predict for neighborhood prompts (dictionary format).已经是构造成如上形式：prompt和target拼接，以及prompt
-    neighborhood_correct = test_batch_prediction_acc(
-        model,
-        tok,
-        [
-            el["prompt"].format(record["requested_rewrite"])#这个format是不是没啥用，因为没有{}给你放
-            for el in neighborhood_prompts
-        ],
-        [el["target"] for el in neighborhood_prompts],#提前准备好的target的逐一拼接token的序列
-        use_llama
-    )
+    # neighborhood_correct = test_batch_prediction_acc(
+    #     model,
+    #     tok,
+    #     [
+    #         el["prompt"].format(record["requested_rewrite"])#这个format是不是没啥用，因为没有{}给你放
+    #         for el in neighborhood_prompts
+    #     ],
+    #     [el["target"] for el in neighborhood_prompts],#提前准备好的target的逐一拼接token的序列
+    #     use_llama
+    # )
 
-    probs = stuff_probs + neighborhood_correct
+    # probs = stuff_probs + neighborhood_correct
+    probs = stuff_probs
 
     # Unflatten the results again into a list of lists.
     cutoffs = [0] + np.cumsum(
@@ -142,7 +149,7 @@ def compute_rewrite_quality_zsre(
             ]
         )
     }
-    ret["neighborhood_prompts_correct"] = neighborhood_correct
+    # ret["neighborhood_prompts_correct"] = neighborhood_correct
 
     #分别是prompt rephrase和neighborhhood，都是list形式的。前两个对应同一个target，loc有自己的target
     #直接generate，看生成是否包含target
@@ -160,6 +167,7 @@ def compute_rewrite_quality_zsre(
 
     return ret
 
+#zsre之前评测loc
 def compute_loc_zsre(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
@@ -248,6 +256,7 @@ def normalize_text(s,special_tokens=[]):
 #     return white_space_fix(remove_articles(remove_punc(lower(s))))
     return white_space_fix(remove_punc(s,special_tokens=special_tokens))
 
+#用于之前评测当前样本+his+loc，generate来判断是否正确--直接输入prompts和targets就行（用于一条一条判断）
 def generate_in_acc(model, prompts: typing.List[str], target,model_name,model_path):
     if model_name in ['llama','vicuna']:
         tok = LlamaTokenizer.from_pretrained(model_path,padding_side="left")
@@ -285,7 +294,7 @@ def generate_in_acc(model, prompts: typing.List[str], target,model_name,model_pa
 
 
 
-#promot已经是拼接过的了
+#zsre之前评测当前样本和his的时候（一条一条），计算旧指标（teacher-forcing）
 def test_batch_prediction_acc(model, tok, prompts: typing.List[str], target,use_llama):
     #长度一致，然后一起输入模型，
     prompt_tok = tok(
@@ -326,10 +335,51 @@ def test_batch_prediction_acc(model, tok, prompts: typing.List[str], target,use_
     #     for i in range(len(temp_ids)):
     #         correct_id.append(temp_ids[i][temp_attn[i].index(1)])
     #     correct_id = torch.tensor(correct_id).to("cuda")
-    return (ans == correct_id).detach().cpu().numpy().tolist()
+    # return (ans == correct_id).detach().cpu().numpy().tolist()
 
 
+#zsre的新loc评测，传进来的tokenizer已经是left_padding
+def zsre_loc_batch(model, tokenizer, data_loader,snips,vec):
+    correct_count, total_count = 0, 0
 
+    special_tokens = [tokenizer.bos_token,tokenizer.eos_token,tokenizer.pad_token,tokenizer.unk_token]
+   
+    with torch.no_grad():
+        model.eval()
+        model.to('cuda')
+        for _, batch in enumerate(data_loader):
+            trg = [b["trg"] for b in batch["raw"]]#以前的b["trg"]是列表
+            input_ids = batch["src_input_ids"].to('cuda')
+            attention_mask = batch["src_attention_mask"].to('cuda')
+           
+            ori_input = tokenizer.batch_decode(batch["src_input_ids"],skip_special_tokens=True)
+           
+
+            model_gen = model.generate(
+                input_ids=input_ids, attention_mask=attention_mask,
+                min_length=0, num_beams=1, num_return_sequences=1, use_cache=True,max_new_tokens=20
+            )
+            pred = tokenizer.batch_decode(model_gen, skip_special_tokens=True)
+                
+            #1.截断
+            for i in range(len(pred)):
+                pred[i]=pred[i][len(ori_input[i]):]#+1是为了去掉空格，没有+1其实也无所谓
+
+            acc = []
+            #改成准确生成
+            for t, p in zip(trg, pred):
+                acc_or_not = False
+                #标准化+取出target长度
+                t = normalize_text(t.lower().strip(),special_tokens)
+                if t ==  normalize_text(p.lower().strip(),special_tokens)[:len(t)]:
+                    acc_or_not= True
+                acc.append(acc_or_not)
+            acc = torch.tensor(acc).long()
+
+            correct_count += torch.sum(acc)
+            total_count += acc.size(0)
+
+        return np.round(correct_count / total_count*100,2)
         
 
 

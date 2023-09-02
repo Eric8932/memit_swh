@@ -22,13 +22,13 @@ from util.generate import generate_fast
 from util.perplexity import perplexity
 
 
-
+#mcf对于当前评测样本以及his的评测（没有loc）
 def compute_rewrite_quality_counterfact(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
     record: typing.Dict,
-    snips: AttributeSnippets,
-    vec: TfidfVectorizer,
+    # snips: AttributeSnippets,
+    # vec: TfidfVectorizer,
     model_name = None,
     model_path = None,
     new_prompt=False,
@@ -127,32 +127,32 @@ def compute_rewrite_quality_counterfact(
     ret["loc_predin_new"] = acc_l_new[len(rewrite_prompts)+len(paraphrase_prompts):]
 
     #不会每条事实都去算，默认是1
-    if snips is not None:
-        # Gather reference texts
-        rel_id = record["requested_rewrite"]["relation_id"]
-        consistency_texts = [x["text"] for x in snips[rel_id][target_new["id"]]]#获取所有的r,o一样的wiki样本-o针对target_new
-        #r,o 和subject都要一样的文本
-        essence_texts = [
-            x["text"]
-            for x in snips[rel_id][target_new["id"]]
-            if x["name"] == record["requested_rewrite"]["subject"]
-        ]
-        assert (
-            len(consistency_texts) > 0
-        ), "Must have consistency texts to evaluate generation"
-        gen_stats = test_generation(
-            model,
-            tok,
-            generation_prompts,#只是用于生成的prompt
-            consistency_texts,
-            essence_texts,
-            vec,
-        )
-        ret.update(gen_stats)
+    # if snips is not None:
+    #     # Gather reference texts
+    #     rel_id = record["requested_rewrite"]["relation_id"]
+    #     consistency_texts = [x["text"] for x in snips[rel_id][target_new["id"]]]#获取所有的r,o一样的wiki样本-o针对target_new
+    #     #r,o 和subject都要一样的文本
+    #     essence_texts = [
+    #         x["text"]
+    #         for x in snips[rel_id][target_new["id"]]
+    #         if x["name"] == record["requested_rewrite"]["subject"]
+    #     ]
+    #     assert (
+    #         len(consistency_texts) > 0
+    #     ), "Must have consistency texts to evaluate generation"
+    #     gen_stats = test_generation(
+    #         model,
+    #         tok,
+    #         generation_prompts,#只是用于生成的prompt
+    #         consistency_texts,
+    #         essence_texts,
+    #         vec,
+    #     )
+    #     ret.update(gen_stats)
 
     return ret
 
-#评测loc和generation相关的
+#mcf之前的评测loc的
 def compute_loc_counterfact(
     model: AutoModelForCausalLM,
     tok: AutoTokenizer,
@@ -295,6 +295,7 @@ def normalize_text(s,special_tokens=[]):
 #     return white_space_fix(remove_articles(remove_punc(lower(s))))
     return white_space_fix(remove_punc(s,special_tokens=special_tokens))
 
+#用于之前评测当前样本+his+loc，generate来判断是否正确--直接输入prompts和targets就行（用于一条一条判断）
 def generate_in_acc(model, prompts: typing.List[str], target_true, target_new, model_name,model_path):
     if model_name in ['llama','vicuna']:
         tok = LlamaTokenizer.from_pretrained(model_path,padding_side="left")
@@ -338,7 +339,7 @@ def generate_in_acc(model, prompts: typing.List[str], target_true, target_new, m
         acc_l_new.append([predin_new,equl_acc_new])
     return acc_l_true,acc_l_new
 
-#分别拼接target_new/true后，模型对于target的预测概率（累加取平均）的大小
+#mcf之前评测当前样本+his+loc（也是一条一条，teacher forcing。比较概率高低）
 def test_batch_prediction(
     model,
     tok,
@@ -407,7 +408,7 @@ def test_batch_prediction(
         for i in range(0, len(probs), 2)
     ], targets_correct
 
-
+#用于评测loc时计算Consistency和Fluency
 def test_generation(
     model,
     tok,
@@ -416,13 +417,14 @@ def test_generation(
     essence_texts: typing.List[str],
     vec: TfidfVectorizer,
 ):
-    gen_texts = generate_fast(#每个prompt生成长为100的序列，快速生成
-        model,
-        tok,
-        prefixes,
-        n_gen_per_prompt=1,
-        max_out_len=100,
-    )
+        
+    tok_res = tok(prefixes,return_tensors="pt", padding=True)
+
+    gen_texts  = model.generate(
+                input_ids=tok_res.input_ids.to('cuda'), attention_mask=tok_res.attention_mask.to('cuda'),
+                num_beams=1, num_return_sequences=1, use_cache=True,max_length=100
+            )
+    gen_texts = tok.batch_decode(gen_texts,skip_special_tokens=True)
 
     ngram_entropy = n_gram_entropy(gen_texts)#所有文本的ngram_entropy的平均--fluency
     #下面才算consistency
@@ -481,3 +483,83 @@ def tfidf_similarity(text_a, text_b, vec):
     encs = vec.transform([text_a, text_b]).A#两个文本向量在tf-idf矩阵中的矩阵表示，再转为2d的稠密表示（基于词0
     norm = np.linalg.norm
     return (np.dot(encs[0], encs[1]) / norm(encs[0]) / norm(encs[1])).item()#cos_sim
+
+
+#mcf的新loc，传进来的tokenizer已经是left_padding
+def mcf_loc_batch(model, tokenizer, data_loader,snips,vec):
+
+    correct_count, total_count = 0, 0
+    import pdb
+    special_tokens = [tokenizer.bos_token,tokenizer.eos_token,tokenizer.pad_token,tokenizer.unk_token]
+
+    ngram_entropy_list = []
+    reference_score_list = []
+    essence_score_list = []
+    with torch.no_grad():
+        model.eval()
+        model.to('cuda')
+        for _, batch in enumerate(data_loader):
+            for record in batch["raw"]:
+                rel_id = record["relation_id"]
+                consistency_texts = [x["text"] for x in snips[rel_id][record['target_new_id']]]#获取所有的r,o一样的wiki样本-o针对target_new
+                #r,o 和subject都要一样的文本
+                essence_texts = [
+                    x["text"]
+                    for x in snips[rel_id][record['target_new_id']]
+                    if x["name"] == record["subject"]
+                ]
+                assert (
+                    len(consistency_texts) > 0
+                ), "Must have consistency texts to evaluate generation"
+                try:
+                    gen_stats = test_generation(
+                        model,
+                        tokenizer,
+                        record['gene'],#只是用于生成的prompt
+                        consistency_texts,
+                        essence_texts,
+                        vec
+                    )
+                    ngram_entropy_list.append(gen_stats['ngram_entropy'])
+                    reference_score_list.append(gen_stats['reference_score'])
+                    # if 'essence_score' in gen_stats:
+                    #     essence_score_list.append(gen_stats['essence_score'])
+                except:
+                    print(essence_texts)
+                    print(record["relation_id"])
+
+            #针对loc计算准确度，loc很多条样本才对应一条target
+            input_ids = batch["src_input_ids"].to('cuda')
+            attention_mask = batch["src_attention_mask"].to('cuda')
+            trg = [b["trg"] for b in batch["raw"] for _ in range(len(b["src"]))]
+
+            ori_input = tokenizer.batch_decode(batch["src_input_ids"],skip_special_tokens=True)
+           
+            model_gen = model.generate(
+                input_ids=input_ids, attention_mask=attention_mask,
+                min_length=0, num_beams=1, num_return_sequences=1, use_cache=True,max_new_tokens=20
+            )
+            pred = tokenizer.batch_decode(model_gen, skip_special_tokens=True)
+                
+            for i in range(len(pred)):
+                pred[i]=pred[i][len(ori_input[i]):]#+1是为了去掉空格，没有+1其实也无所谓
+
+            assert len(trg)==len(pred)
+            acc = []
+            #改成准确生成
+            for t, p in zip(trg, pred):
+                acc_or_not = False
+                t = normalize_text(t.lower().strip(),special_tokens)
+                if t==  normalize_text(p.lower().strip(),special_tokens)[:len(t)]:
+                    acc_or_not= True
+                acc.append(acc_or_not)
+
+            acc = torch.tensor(acc).long()
+
+            correct_count += torch.sum(acc)
+            total_count += acc.size(0)
+        # if len(essence_score_list)>0:
+        #     ess_score = np.mean(essence_score_list)
+        # else:
+        #     ess_score = 0
+        return np.round(correct_count / total_count*100,2),np.mean(ngram_entropy_list),np.mean(reference_score_list)

@@ -4,3 +4,4 @@ from .knowns import KnownsDataset
 from .tfidf_stats import get_tfidf_vectorizer
 from .zsre import MENDQADataset
 from .zsre_seq import MENDQADataset_Seq,MENDQADataset_Loc
+from .loc_dataset import ZSRE_Loc, MCF_Loc

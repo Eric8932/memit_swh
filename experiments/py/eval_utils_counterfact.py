@@ -299,13 +299,13 @@ def test_generation(
     essence_texts: typing.List[str],
     vec: TfidfVectorizer,
 ):
-    gen_texts = generate_fast(#每个prompt生成长为100的序列，快速生成
-        model,
-        tok,
-        prefixes,
-        n_gen_per_prompt=1,
-        max_out_len=100,
-    )
+    tok_res = tok(prefixes,return_tensors="pt", padding=True)
+
+    gen_texts  = model.generate(
+                input_ids=tok_res.input_ids.to('cuda'), attention_mask=tok_res.attention_mask.to('cuda'),
+                num_beams=1, num_return_sequences=1, use_cache=True,max_length=100
+            )
+    gen_texts = tok.batch_decode(gen_texts,skip_special_tokens=True)
 
     ngram_entropy = n_gram_entropy(gen_texts)#所有文本的ngram_entropy的平均--fluency
     #下面才算consistency

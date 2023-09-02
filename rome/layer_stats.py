@@ -11,6 +11,8 @@ from util.globals import *
 from util.nethook import Trace, set_requires_grad
 from util.runningstats import CombinedStat, Mean, NormMean, SecondMoment, tally
 
+import json
+
 from .tok_dataset import (
     TokenizedDataset,
     dict_to_,
@@ -86,7 +88,7 @@ def layer_stats(
     sample_size=None,
     precision=None,
     batch_tokens=None,
-    download=True,
+    download=False,
     progress=tqdm,
     force_recompute=False,
     c_noupt = False,
@@ -96,20 +98,34 @@ def layer_stats(
     """
 
     def get_ds():
-        raw_ds = load_dataset(
-            ds_name,
-            dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
-            cache_dir='/apdcephfs/share_1157269/yirenchen/wenhangshi/data_tmp/wikipedia')#github
-        # '/apdcephfs/share_1157269/yirenchen/wenhangshi/data_tmp/wikipedia'
-        # /data/swh/UER/memit/resource/wiki
-
         if 'gpt-j' not in tokenizer.name_or_path:
             maxlen = model.config.max_position_embeddings
         else:
             maxlen = model.config.n_positions
         if batch_tokens is not None and batch_tokens < maxlen:
             maxlen = batch_tokens
-        return TokenizedDataset(raw_ds["train"], tokenizer, maxlen=maxlen)
+        if ds_name == 'wikipedia':
+            raw_ds = load_dataset(
+                ds_name,
+                dict(wikitext="wikitext-103-raw-v1", wikipedia="20220301.en")[ds_name],
+                cache_dir='/apdcephfs/share_1157269/yirenchen/wenhangshi/data_tmp/wikipedia')#github
+            # '/apdcephfs/share_1157269/yirenchen/wenhangshi/data_tmp/wikipedia'
+            # /data/swh/UER/memit/resource/wiki
+
+            return TokenizedDataset(raw_ds["train"], tokenizer, maxlen=maxlen)
+        elif ds_name == 'zsre_train':
+            text_list = []
+            with open('data/zsre_swh_train.json', "r") as f:
+                raw = json.load(f)
+            for i in range(len(raw)):
+                text_list.append(raw[i]['src']+' '+raw[i]['answers'][0])
+            data = {
+            "id": list(range(1, 1+len(text_list))), 
+            "text": text_list  # Your texts
+            }
+
+            r_data = Dataset.from_dict(data)
+            return TokenizedDataset(r_data, tokenizer, maxlen=maxlen)
 
     # Continue with computation of statistics
     batch_size = 100  # Examine this many dataset texts at once
@@ -129,7 +145,7 @@ def layer_stats(
         model_name = model.config._name_or_path.replace("/", "_")
 
     stats_dir = Path(stats_dir)
-    if c_noupt and 'gpt-j' not in tokenizer.name_or_path:
+    if c_noupt and ('gpt-j' not in tokenizer.name_or_path or ds_name != 'wikipedia'):
         file_extension = f"{model_name}/{ds_name}_stats/{layer_name}_{precision}_{'-'.join(sorted(to_collect))}{size_suffix}_noupt.npz"
     else:
         file_extension = f"{model_name}/{ds_name}_stats/{layer_name}_{precision}_{'-'.join(sorted(to_collect))}{size_suffix}.npz"

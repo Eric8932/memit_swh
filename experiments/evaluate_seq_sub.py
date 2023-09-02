@@ -6,8 +6,8 @@ from typing import Tuple, Union
 import numpy as np
 
 import torch
-from torch.utils.data import DataLoader
 from transformers import AutoModelForCausalLM, AutoTokenizer,LlamaTokenizer,LlamaForCausalLM
+from torch.utils.data import DataLoader
 
 from baselines.ft import FTHyperParams, apply_ft_to_model
 from baselines.mend import MENDHyperParams, MendRewriteExecutor
@@ -24,13 +24,14 @@ from dsets import (
 )
 from experiments.py.eval_utils_counterfact_seq import compute_rewrite_quality_counterfact,mcf_loc_batch
 from experiments.py.eval_utils_zsre_seq import compute_rewrite_quality_zsre,edit_or_not,zsre_loc_batch
-from memit import MEMITHyperParams, apply_memit_to_model
+from memit import MEMITHyperParams, apply_memit_to_model_sub
 from rome import ROMEHyperParams, apply_rome_to_model
 from util import nethook
 from util.globals import *
 
+
 ALG_DICT = {
-    "MEMIT": (MEMITHyperParams, apply_memit_to_model),
+    "MEMIT": (MEMITHyperParams, apply_memit_to_model_sub),
     "ROME": (ROMEHyperParams, apply_rome_to_model),
     "FT": (FTHyperParams, apply_ft_to_model),
     "MEND": (MENDHyperParams, MendRewriteExecutor().apply_to_model),
@@ -77,6 +78,9 @@ def main(
     real_edit = False,
     c_noupt = False,
     c_adapt = False,
+    neuron_num = 5,
+    select_standard = "key_norm",
+    M_from_sub = True,
 ):
     # Set algorithm-specific variables
     params_class, apply_algo = ALG_DICT[alg_name]#超参数和应用的算法
@@ -86,6 +90,13 @@ def main(
     new_name += ds_name
     new_name += '_'
     new_name += str(num_edits)
+
+    new_name += '_sub'
+    new_name += str(neuron_num)
+    new_name += select_standard
+    if not M_from_sub:
+        new_name += 'Mall'
+
     if not use_algo:
         new_name += "_zeroshot"
     if new_prompt:
@@ -97,8 +108,9 @@ def main(
     if c_adapt:
         new_name += '_cadapt'
 
-    new_name += '_seq'
 
+    new_name += '_seq'
+    dir_name += '_sub'
     # Determine run directory
     # Create new dir if not continuing from prev run OR prev run doesn't exist
     if (
@@ -213,7 +225,6 @@ def main(
     acc_delta = None
 
     case_result_template = str(run_dir / "{}_{}.json")
-    gen_test_vars = [snips, vec]#计算fluency和consistency
 
     if orig_loc:
         loc_start = time()
@@ -276,7 +287,7 @@ def main(
         start = time()
         #影响因素有model 数据集，new_prompt 编辑数量--可以存在run_dir里面，以后要评测可以直接读
         #直接跑算法，就重新跑一次吧
-        edited_model, weights_copy,deltas = apply_algo(
+        edited_model,deltas,all_neuron_num = apply_algo(
             model,
             tok,
             [
@@ -288,6 +299,9 @@ def main(
             return_orig_weights=True,
             last_requests = last_records,
             c_noupt = c_noupt,
+            neuron_num = neuron_num,
+            select_standard = select_standard,
+            M_from_sub = M_from_sub,
             **args_conserve_memory,
             **etc_args,#保存的事先计算好的kv对的地址，但是应该还没算出来
         )
@@ -301,17 +315,21 @@ def main(
         if acc_delta is None:
             acc_delta = {}
             with torch.no_grad():
-                for w_name, (key_mat, val_mat) in deltas.items():
+                for w_name, (key_mat, val_mat,top_abs_indices) in deltas.items():
                     key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
                     upd_matrix = key_mat @ val_mat.T
-                    acc_delta[w_name] = upd_matrix.float()
+                    new_matrix = torch.zeros(all_neuron_num, upd_matrix.shape[1], device='cuda')
+                    new_matrix[top_abs_indices, :] = upd_matrix.float()
+                    acc_delta[w_name] = new_matrix.float()
             
         else:
             with torch.no_grad():
-                for w_name, (key_mat, val_mat) in deltas.items():
+                for w_name, (key_mat, val_mat,top_abs_indices) in deltas.items():
                     key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
                     upd_matrix = key_mat @ val_mat.T
-                    acc_delta[w_name] += upd_matrix.float()
+                    new_matrix = torch.zeros(all_neuron_num, upd_matrix.shape[1], device='cuda')
+                    new_matrix[top_abs_indices, :] = upd_matrix.float()
+                    acc_delta[w_name] += new_matrix.float()
 
         # np.save(save_deltas_dir/"deltas_"+str(edit_num)+".npy",deltas)#不把每一个都保存了
         edit_record.append(record)
@@ -336,8 +354,7 @@ def main(
                 model,
                 tok,
                 record,
-                # None,
-                # None,
+                # [None,None],
                 model_name,
                 model_path,
                 new_prompt,
@@ -347,7 +364,7 @@ def main(
         torch.cuda.empty_cache()
 
 
-        #把编辑过的以及loc全部评估一遍
+        #把编辑过的评估一遍
         if (edit_num+1)%eval_edited_freq==0:
             eval_res_list = []
             for record in edit_record:
@@ -357,7 +374,7 @@ def main(
                         model,
                         tok,
                         record,
-                        # None, None,
+                        # None,None,
                         model_name,
                         model_path,
                         new_prompt,
@@ -435,7 +452,7 @@ def main(
                 model,
                 tok,
                 record,
-                # None,None,
+                # [None,None],
                 model_name,
                 model_path,
                 new_prompt,
@@ -478,6 +495,7 @@ def main(
     loc_res['loc_exec_time'] = loc_exec_time
     
     np.save(run_dir/("final_loc.npy"),loc_res)
+
 
     
     #保存不断累积的变化量（+）
@@ -651,6 +669,24 @@ if __name__ == "__main__":
         help="adpat c to the edited requests",#默认为false，使用不断更新的版本
     )
 
+    parser.add_argument(
+        "--neuron_num",
+        type=int,
+        default=5,
+        help="Number of selelcted sub neuron from W_out ",
+    )
+    parser.add_argument(
+        "--select_standard",
+        type=str,
+        default="key_norm",
+        help="Standard for selecting sub neurons--key_norm/key/random",
+    )
+    parser.add_argument(
+        "--M_from_sub",
+        action="store_false",
+        help="Whether M is from sub neurons",#默认为True，也就是zs-cur_zs保持不变
+    )
+
     parser.set_defaults(skip_generation_tests=False, conserve_memory=False)
     args = parser.parse_args()
 
@@ -678,5 +714,9 @@ if __name__ == "__main__":
         orig_loc = args.orig_loc,
         real_edit= args.real_edit,
         c_noupt = args.c_noupt,
-        c_adapt= args.c_adapt
+        c_adapt= args.c_adapt,
+        neuron_num = args.neuron_num,
+        select_standard = args.select_standard,
+        M_from_sub = args.M_from_sub,
+
     )
