@@ -327,8 +327,8 @@ def execute_memit(
         # Update model weights and record desired changes in `delta` variable
         with torch.no_grad():
             #这样写没问题，并且还稍微提升了一点表现，所以最终的表现差异应该是来自于fp16和fp32的转换
-            # weights[weight_name][:,top_abs_indices] = weights_copy[weight_name][:,top_abs_indices] + upd_matrix.float()#github
-            weights[weight_name][:,top_abs_indices] = weights_copy[weight_name][:,top_abs_indices] + upd_matrix.half()#变成了fp32，只影响后续的计算
+            weights[weight_name][:,top_abs_indices] = weights_copy[weight_name][:,top_abs_indices] + upd_matrix.float()#github
+            # weights[weight_name][:,top_abs_indices] = weights_copy[weight_name][:,top_abs_indices] + upd_matrix.half()#变成了fp32，只影响后续的计算
             # print(weights_copy[weight_name].device,weights_copy[weight_name].dtype)
             deltas[weight_name] = (
                 adj_k.detach().cpu(),
