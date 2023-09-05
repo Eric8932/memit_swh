@@ -75,12 +75,14 @@ def main(
     loc_data_size=100,
     loc_batch_size = 4,
     orig_loc = True,
+    final_loc = True,
     real_edit = False,
     c_noupt = False,
     c_adapt = False,
     neuron_num = 5,
     select_standard = "key_norm",
     M_from_sub = True,
+    max_tolerate_fail_num = 10000,
 ):
     # Set algorithm-specific variables
     params_class, apply_algo = ALG_DICT[alg_name]#超参数和应用的算法
@@ -261,6 +263,7 @@ def main(
 
     real_edit_num = 0
     last_records = None
+    fail_seq_number = 0
     for record_chunks in chunks(ds, 1):#每一次都更新1个
         #更新前判断是否应该更新
         record = record_chunks[0]
@@ -363,6 +366,16 @@ def main(
         afedit_res_list.append(metrics)
         torch.cuda.empty_cache()
 
+        if args.ds_name == 'zsre':
+            if not metrics['post']['rewrite_predin'][0][1]:
+                fail_seq_number +=1 
+            else:
+                fail_seq_number = 0
+        else:
+            if not metrics['post']['rewrite_prompts_correct'][0]:
+                fail_seq_number +=1 
+            else:
+                fail_seq_number = 0
 
         #把编辑过的评估一遍
         if (edit_num+1)%eval_edited_freq==0:
@@ -386,6 +399,9 @@ def main(
             with open(out_file_eval, "w") as f:
                 json.dump(eval_res_list, f, indent=1)
 
+        if fail_seq_number > max_tolerate_fail_num:
+            print("real_edit_num: ",real_edit_num)
+            break
         #     loc_start= time()
         #     if args.ds_name == 'zsre':
         #         equal_list = []#每一个样本只有一个acc，也只有一个结果要看
@@ -466,35 +482,36 @@ def main(
     with open(out_file_final, "w") as f:
         json.dump(final_res_list, f, indent=1)
 
-    loc_start= time()
-    if args.ds_name == 'zsre':
-        equal_acc = ds_eval_loc(
-            model,
-            tok_loc,
-            loc_loader,
-            None,
-            None
-        )
-        torch.cuda.empty_cache()
-        loc_res = {}
-        loc_res['equal_acc'] = equal_acc
-    else:
-        res = ds_eval_loc(
-            model,
-            tok_loc,
-            loc_loader,
-            snips, 
-            vec
-        )
-        torch.cuda.empty_cache()
-        loc_res = {}
-        loc_res['equal_acc'] = res[0]
-        loc_res["ngram_entropy"] = res[1]
-        loc_res['reference_score'] = res[2]
-    loc_exec_time = time()-loc_start
-    loc_res['loc_exec_time'] = loc_exec_time
-    
-    np.save(run_dir/("final_loc.npy"),loc_res)
+    if final_loc:
+        loc_start= time()
+        if args.ds_name == 'zsre':
+            equal_acc = ds_eval_loc(
+                model,
+                tok_loc,
+                loc_loader,
+                None,
+                None
+            )
+            torch.cuda.empty_cache()
+            loc_res = {}
+            loc_res['equal_acc'] = equal_acc
+        else:
+            res = ds_eval_loc(
+                model,
+                tok_loc,
+                loc_loader,
+                snips, 
+                vec
+            )
+            torch.cuda.empty_cache()
+            loc_res = {}
+            loc_res['equal_acc'] = res[0]
+            loc_res["ngram_entropy"] = res[1]
+            loc_res['reference_score'] = res[2]
+        loc_exec_time = time()-loc_start
+        loc_res['loc_exec_time'] = loc_exec_time
+        
+        np.save(run_dir/("final_loc.npy"),loc_res)
 
 
     
@@ -653,6 +670,12 @@ if __name__ == "__main__":
         help="Whether compute loc before editing",
     )
     parser.add_argument(
+        "--final_loc",
+        action="store_false",
+        help="Whether compute loc after editing",
+    )
+
+    parser.add_argument(
         "--real_edit",
         action="store_true",
         help="num_edits = the real editing sample number",
@@ -687,6 +710,13 @@ if __name__ == "__main__":
         help="Whether M is from sub neurons",#默认为True，也就是zs-cur_zs保持不变
     )
 
+    parser.add_argument(
+        "--max_tolerate_fail_num",
+        type=int,
+        default=10000,
+        help="Exploring the max editing number, default to 0",
+    )
+
     parser.set_defaults(skip_generation_tests=False, conserve_memory=False)
     args = parser.parse_args()
 
@@ -712,11 +742,12 @@ if __name__ == "__main__":
         loc_data_size = args.loc_data_size,
         loc_batch_size = args.loc_batch_size,
         orig_loc = args.orig_loc,
+        final_loc = args.final_loc,
         real_edit= args.real_edit,
         c_noupt = args.c_noupt,
         c_adapt= args.c_adapt,
         neuron_num = args.neuron_num,
         select_standard = args.select_standard,
         M_from_sub = args.M_from_sub,
-
+        max_tolerate_fail_num = args.max_tolerate_fail_num
     )

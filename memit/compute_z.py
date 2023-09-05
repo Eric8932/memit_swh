@@ -15,7 +15,7 @@ def compute_z(
     tok: AutoTokenizer,
     request: Dict,
     hparams: MEMITHyperParams,
-    layer: int,#最后一层的critical layer（这里默认只修改一层）
+    layer: int,#最后一层的critical layer
     context_templates: List[str],
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
