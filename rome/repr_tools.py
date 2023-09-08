@@ -73,7 +73,7 @@ def get_words_idxs_in_templates(
     assert len(prefixes) == len(words) == len(suffixes)
     n = len(prefixes)
     batch_tok = tok([*prefixes, *words, *suffixes])
-    if 'gpt-j' not in tok.name_or_path:
+    if 'gpt-j' not in tok.name_or_path:#有bos
         prefixes_len, words_len, suffixes_len = [ 
             [len(el) for el in batch_tok.input_ids[i : i + n]] 
             for i in range(0, n * 3, n) 

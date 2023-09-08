@@ -102,7 +102,9 @@ def generate_fast(
     gen_args = {
         'max_length': max_out_len, 
         'do_sample': True, 
-        'top_k': top_k
+        'top_k': top_k,
+        # 'top_k': 10,
+        # 'temperature': 0.7,
     }
 
     out_tok = model.generate(inp_tok['input_ids'], **gen_args)

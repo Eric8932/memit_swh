@@ -16,6 +16,12 @@ from util.globals import *
 from .compute_ks import compute_ks
 from .compute_z import compute_z, get_module_input_output_at_words, find_fact_lookup_idx
 from .memit_hparams import MEMITHyperParams
+from rome import repr_tools
+
+from sklearn.feature_selection import f_classif, mutual_info_classif
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import LinearSVC
+from sklearn.metrics import *
 
 import random
 
@@ -40,7 +46,11 @@ def apply_memit_to_model_sub(#方法
     c_noupt = False,
     neuron_num = 5,
     select_standard = "key_norm",
+    X_text_list = None,
+    y_list = None,
+    words = None,
     M_from_sub = True,
+    qr = False,
 ) -> Tuple[AutoModelForCausalLM, Dict[str, Any]]:
     """
     Returns a model with the desired changes.
@@ -53,7 +63,8 @@ def apply_memit_to_model_sub(#方法
     if copy:
         model = deepcopy(model)
 
-    deltas = execute_memit(model, tok, requests, hparams, cache_template=cache_template,last_requests=last_requests,c_noupt=c_noupt,neuron_num=neuron_num,select_standard=select_standard,M_from_sub=M_from_sub)#每一层的变化量（critical layers的W_out）
+    deltas = execute_memit(model, tok, requests, hparams, cache_template=cache_template,last_requests=last_requests,c_noupt=c_noupt,neuron_num=neuron_num,
+                           select_standard=select_standard,X_text_list=X_text_list,y=y_list,words=words,M_from_sub=M_from_sub,qr=qr)#每一层的变化量（critical layers的W_out）
 
 
     all_neuron_num = None
@@ -69,8 +80,8 @@ def apply_memit_to_model_sub(#方法
             # if return_orig_weights and w_name not in weights_copy:
             #     weights_copy[w_name] = w.detach().clone()
 
-            # w[...] += upd_matrix.float()#+=还是保持fp16，而且这种方法不会影响精度. github
-            w[...] += upd_matrix.half()#+=还是保持fp16，而且这种方法不会影响精度.
+            w[...] += upd_matrix.float()#+=还是保持fp16，而且这种方法不会影响精度. #github
+            # w[...] += upd_matrix.half()#+=还是保持fp16，而且这种方法不会影响精度.
 
     print(f"New weights successfully inserted into {list(deltas.keys())}")
 
@@ -87,7 +98,11 @@ def execute_memit(
     c_noupt = False,#如果为True，就在更新前把所有层的C都算出来
     neuron_num = 5,
     select_standard = "key_norm",#key key_norm random
-    M_from_sub = True#M为部分neuron的结果--直接减就行
+    X_text_list = None,
+    y = None,
+    words = None,
+    M_from_sub = True,#M为部分neuron的结果--直接减就行
+    qr = False,
 ) -> Dict[str, Tuple[torch.Tensor]]:
     """
     Executes the MEMIT update algorithm for the specified update at the specified layer
@@ -216,7 +231,7 @@ def execute_memit(
 
             # 找到绝对值最大的5个位置
             top_abs_indices = torch.argsort(layer_ks.abs(), dim=0, descending=True)[:neuron_num].flatten()
-            print("绝对值最大的5个位置：", top_abs_indices)
+            print("绝对值最大的位置：", top_abs_indices)
             
         elif select_standard == 'key_norm':
             #得到每个W_out矩阵对应的norm
@@ -229,11 +244,64 @@ def execute_memit(
 
             # 找到绝对值最大的5个位置
             top_abs_indices = torch.argsort(target_key.abs(), dim=0, descending=True)[:neuron_num].flatten()
-            print("绝对值最大的5个位置：", top_abs_indices)
+            print("绝对值最大的位置：", top_abs_indices)
         elif select_standard == 'random':
-            top_abs_indices = torch.randint(0, layer_ks.size(1), (neuron_num,)).to("cuda").flatten()
-            print("随机选择的5个位置：", top_abs_indices)
-        top_abs_indices.sort().values
+            top_abs_indices = torch.randperm(layer_ks.size(0))[:neuron_num].flatten()
+            print("随机选择的位置：", top_abs_indices)
+
+        #275365非常慢，这个明天再全部跑一遍.太慢并且效果还不好，可以考虑不要
+        #MI非常慢，但也要考虑
+        elif select_standard in ["mean_dif","mi","f_stat","lr","svm"]:
+            #构造数据集应该提前做，然后每层再来计算
+            
+            #该函数得到每个样本在last subject token处的表征.现在有X_text_list--X是每个样本对应的向量
+            X = repr_tools.get_reprs_at_word_tokens(model,tok,X_text_list,words,layer,module_template=hparams.rewrite_module_tmp,subtoken="last",track= "in")
+            X = X.reshape(len(y),-1).detach().cpu().numpy()
+            #构造X和y，其中X是last subject token的表征，y取决于是否是正的向量，然后转成numpy格式
+
+            def get_heuristic_neuron_ranking(X, y, method,neuron_num):
+                pos_class = y == 1
+                if method == 'lr':
+                    lr = LogisticRegression(
+                        class_weight='balanced', C=0.1,
+                        penalty='l1', solver='saga', n_jobs=-1)
+                    lr = lr.fit(X, y)
+                    ranks = np.argsort(np.abs(lr.coef_[0]))
+                elif method == 'svm':
+                    svm = LinearSVC(loss='hinge')
+                    svm = svm.fit(X, y)
+                    ranks = np.argsort(np.abs(svm.coef_))
+                elif method == 'f_stat':
+                    f_stat, p_val = f_classif(X, y)
+                    ranks = np.argsort(f_stat)
+                elif method == 'mi':
+                    mi = mutual_info_classif(X, y)
+                    ranks = np.argsort(mi)
+
+                elif method == 'mean_dif':
+                    mean_dif = np.abs(X[pos_class].mean(axis=0) -
+                                    X[~pos_class].mean(axis=0))
+                    ranks = np.argsort(mean_dif)
+                else:
+                    raise ValueError('Invalid method')
+                ranks = ranks.flatten()
+                return ranks[-neuron_num:]
+            
+            pos_class = y == 1
+            mean_dif = np.abs(X[pos_class].mean(axis=0) -
+                            X[~pos_class].mean(axis=0))
+            
+            ranks = np.argsort(mean_dif)
+            filter_size = 2000 if neuron_num <2000 else 7000
+            filtered_subset = np.sort(ranks[-filter_size:])
+            X_filtered = X[:, filtered_subset]
+            top_filtered_ranks = get_heuristic_neuron_ranking(X_filtered, y, select_standard,neuron_num)
+
+            top_abs_indices = torch.tensor(filtered_subset[top_filtered_ranks])
+
+            
+        top_abs_indices = top_abs_indices.sort().values
+        print(top_abs_indices)
         
         #得到了top5_abs_indices
 
@@ -253,20 +321,21 @@ def execute_memit(
         # print("cur_zs.shape ",cur_zs.shape)#4096*1
         targets = zs - cur_zs#hidden_size*修改个数
 
-        if not M_from_sub:#假设M'来自全部neuron，那这里需要加上不更新neuron的输出
-            #layer_ks.shape--11008*1
-            weight_name = f"{hparams.rewrite_module_tmp.format(layer)}.weight"#4096*11008
-            w = weights[weight_name]
-            #把layer_ks中top_abs_indices置0，
-            masked_layer_ks = layer_ks.clone()
-            masked_layer_ks[top_abs_indices, :] = 0
+        #这个点先不考虑
+        # if not M_from_sub:#假设M'来自全部neuron，那这里需要加上不更新neuron的输出
+        #     #layer_ks.shape--11008*1
+        #     weight_name = f"{hparams.rewrite_module_tmp.format(layer)}.weight"#4096*11008
+        #     w = weights[weight_name]
+        #     #把layer_ks中top_abs_indices置0，
+        #     masked_layer_ks = layer_ks.clone()
+        #     masked_layer_ks[top_abs_indices, :] = 0
 
-            # 再和weight相乘,维度变成和targets一样
-            result = torch.mm(w, masked_layer_ks).reshape(targets.shape)
-            #，再相加
-            targets += result
+        #     # 再和weight相乘,维度变成和targets一样
+        #     result = torch.mm(w, masked_layer_ks).reshape(targets.shape)
+        #     #，再相加
+        #     targets += result
 
-            del masked_layer_ks
+        #     del masked_layer_ks
 
 
         print("z error", torch.linalg.norm(targets, dim=0).mean())
@@ -293,10 +362,12 @@ def execute_memit(
             last_requests = last_requests,
             c_noupt = c_noupt,
         )
+        
         #cov的维度应该就是11008*11008，用top5_abs_indices筛选出来新的cov和layer_ks
-        cov = cov[top_abs_indices, :][:, top_abs_indices]
-        layer_ks = layer_ks[top_abs_indices]
+        # cov = cov[top_abs_indices, :][:, top_abs_indices].cpu()
+        cov = cov[top_abs_indices, :].double().cpu()
 
+        sub_layer_ks = layer_ks[top_abs_indices].double().cpu()
 
         # Compute update in double precision
         # layer_ks, targets = (
@@ -308,12 +379,22 @@ def execute_memit(
             layer_ks.double().cpu(),
             targets.double().cpu(),
         )
-        cov = cov.cpu()
-        adj_k = torch.linalg.solve(
-            hparams.mom2_update_weight * cov.double() + layer_ks @ layer_ks.T,
-            layer_ks,
-        )
+        
+
+        # adj_k = torch.linalg.solve(
+        #     # hparams.mom2_update_weight * cov.double() + layer_ks @ layer_ks.T,
+        #     layer_ks,
+        # )
+        if not qr:
+            pseudo_inv = torch.linalg.pinv(hparams.mom2_update_weight*cov + sub_layer_ks @ layer_ks.T)
+            adj_k = (layer_ks.T @ pseudo_inv).T
+        else:
+            Q, R = torch.linalg.qr((hparams.mom2_update_weight*cov + sub_layer_ks @ layer_ks.T).T)
+            y = Q.T @ layer_ks
+            adj_k = torch.linalg.solve(R, y)[:cov.size(0), :]
+
         resid = targets / (len(hparams.layers) - i)  # Distribute residual across layers 还有几层可以分散
+
         upd_matrix = (resid @ adj_k.T).cuda()
 
 
@@ -321,8 +402,8 @@ def execute_memit(
         weight_name = f"{hparams.rewrite_module_tmp.format(layer)}.weight"
         upd_matrix = upd_matrix_match_shape(upd_matrix, weights[weight_name][:,top_abs_indices].shape)
 
-        print("orig norm", torch.linalg.norm(weights[weight_name]))#cuda0 float 16
-        print("upd norm", torch.linalg.norm(upd_matrix))#cuda0 float64
+        # print("orig norm", torch.linalg.norm(weights[weight_name]))#cuda0 float 16
+        # print("upd norm", torch.linalg.norm(upd_matrix))#cuda0 float64
 
         # Update model weights and record desired changes in `delta` variable
         with torch.no_grad():

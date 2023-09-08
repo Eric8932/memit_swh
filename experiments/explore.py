@@ -119,89 +119,115 @@ def main(
     print(tok.name_or_path)
 
     model.eval()
-    ds = DS_DICT[ds_name](DATA_DIR, tok=tok, size=dataset_size_limit,llama=use_llama,new_prompt=new_prompt)#都会限制数据集的大小和编辑数量一致（尤其CF），因此只有一个chunk
+    context_templates =[
+            [
+                f.replace("{", " ").replace("}", " ") + ". {}"
+                for f in generate_fast(#自己实现的快速并行生成的函数。针对下面5个prompt，每个生成1个长为10的序列
+                    model,
+                    tok,
+                    ["The", "Therefore", "Because", "I", "You",
+                     "We","Yes","But","They","And",
+                     "Every","Any","Then","Firstly","Rarely",
+                     "Meanwhile","Otherwise","Both","Perhaps","People",
+                     "Even","Like","If","As","Since"],
+                    n_gen_per_prompt=n_gen,#20个词，每个生成5句
+                    max_out_len=length,
+                )
+            ]
+            for length, n_gen in [(10, 5)]  # Be careful about changing this.
+        ] 
+    contexts = [context for context_type in context_templates for context in context_type]
+    f = open("data/genarated_prompts.txt","w",encoding='utf-8')
+    for c in contexts:
+        f.write(c)
+        f.write("\n")
+    f.close()
+
+
+
+    # ds = DS_DICT[ds_name](DATA_DIR, tok=tok, size=dataset_size_limit,llama=use_llama,new_prompt=new_prompt)#都会限制数据集的大小和编辑数量一致（尤其CF），因此只有一个chunk
     
-    #1.读取数据集，2.每条数据判断能否 3.从底至上传播
+    # #1.读取数据集，2.每条数据判断能否 3.从底至上传播
 
-    # 1.每层last subject token的key向量
-    # 2.key*neuron_norm后的向量
-    # 3.如果向量有些维度比较大，对应的neuron的vocab--记录每个neuron，映射到vacab后的top10token及对应概率（分为有无LN）--这个不用每次都算
+    # # 1.每层last subject token的key向量
+    # # 2.key*neuron_norm后的向量
+    # # 3.如果向量有些维度比较大，对应的neuron的vocab--记录每个neuron，映射到vacab后的top10token及对应概率（分为有无LN）--这个不用每次都算
 
-    #每条record的id作为key，是否通过，以及对应每层的key和key*norm
-    records_dic = {}
-    neuron_vocab_dic = {}#这两个只算一次
+    # #每条record的id作为key，是否通过，以及对应每层的key和key*norm
+    # records_dic = {}
+    # neuron_vocab_dic = {}#这两个只算一次
 
 
-    for record_chunks in chunks(ds, 1):#每一次都更新1个
-        #更新前判断是否应该更新
-        record = record_chunks[0]
-        edit_ = edit_or_not(model,tok_loc,record)
-        r_dic = {}
-        r_dic['pass'] = not edit_
+    # for record_chunks in chunks(ds, 1):#每一次都更新1个
+    #     #更新前判断是否应该更新
+    #     record = record_chunks[0]
+    #     edit_ = edit_or_not(model,tok_loc,record)
+    #     r_dic = {}
+    #     r_dic['pass'] = not edit_
 
-        request = record["requested_rewrite"]
-        if request["target_new"]["str"][0] != " ":
-            # Space required for correct tokenization
-            request["target_new"]["str"] = " " + request["target_new"]["str"]
+    #     request = record["requested_rewrite"]
+    #     if request["target_new"]["str"][0] != " ":
+    #         # Space required for correct tokenization
+    #         request["target_new"]["str"] = " " + request["target_new"]["str"]
 
-        model_named_modules = {x[0]: x[1] for x in model.named_modules()}
+    #     model_named_modules = {x[0]: x[1] for x in model.named_modules()}
         
-        context_templates = get_context_templates(model, tok)
+    #     context_templates = get_context_templates(model, tok)
 
-        with torch.no_grad():
-            for layer in range(hparams.v_loss_layer+1):
-                layer_ks = compute_ks(model, tok, [request], hparams, layer, context_templates).T 
+    #     with torch.no_grad():
+    #         for layer in range(hparams.v_loss_layer+1):
+    #             layer_ks = compute_ks(model, tok, [request], hparams, layer, context_templates).T 
 
-                weight_name = f"{hparams.rewrite_module_tmp.format(layer)}"
-                col_norms = torch.norm(model_named_modules[weight_name].weight, dim=0).unsqueeze(-1)#4096*11008
-                target_key = col_norms * layer_ks
+    #             weight_name = f"{hparams.rewrite_module_tmp.format(layer)}"
+    #             col_norms = torch.norm(model_named_modules[weight_name].weight, dim=0).unsqueeze(-1)#4096*11008
+    #             target_key = col_norms * layer_ks
 
-                r_dic["key_"+str(layer)] = layer_ks.cpu()
-                r_dic["key_norm"+str(layer)] = target_key.cpu()
-                del layer_ks, target_key,col_norms
-                torch.cuda.empty_cache()
+    #             r_dic["key_"+str(layer)] = layer_ks.cpu()
+    #             r_dic["key_norm"+str(layer)] = target_key.cpu()
+    #             del layer_ks, target_key,col_norms
+    #             torch.cuda.empty_cache()
 
-                if neuron_vocab:
-                    if str(layer)+"_top20_values" in neuron_vocab_dic:
-                        continue
-                    w1 = model_named_modules[weight_name].weight
-                    if 'llama' in model_name:
-                        n = model_named_modules['model.norm']
-                    else:
-                        n = model_named_modules['transformer.ln_f']
-                    lm = model_named_modules['lm_head']
+    #             if neuron_vocab:
+    #                 if str(layer)+"_top20_values" in neuron_vocab_dic:
+    #                     continue
+    #                 w1 = model_named_modules[weight_name].weight
+    #                 if 'llama' in model_name:
+    #                     n = model_named_modules['model.norm']
+    #                 else:
+    #                     n = model_named_modules['transformer.ln_f']
+    #                 lm = model_named_modules['lm_head']
 
-                    v1 = lm(w1.t())
-                    softmax_output = F.softmax(v1, dim=-1)
-                    top20_values, top20_indices = torch.topk(softmax_output, 50, dim=-1)
-                    # v1 = v1.cpu()
-                    # softmax_output = softmax_output.cpu()
-                    neuron_vocab_dic[str(layer)+"_top20_values"] = top20_values.cpu()
-                    neuron_vocab_dic[str(layer)+"_top20_indices"] = top20_indices.cpu()
-                    del v1,softmax_output,top20_values,top20_indices
-                    torch.cuda.empty_cache()
+    #                 v1 = lm(w1.t())
+    #                 softmax_output = F.softmax(v1, dim=-1)
+    #                 top20_values, top20_indices = torch.topk(softmax_output, 50, dim=-1)
+    #                 # v1 = v1.cpu()
+    #                 # softmax_output = softmax_output.cpu()
+    #                 neuron_vocab_dic[str(layer)+"_top20_values"] = top20_values.cpu()
+    #                 neuron_vocab_dic[str(layer)+"_top20_indices"] = top20_indices.cpu()
+    #                 del v1,softmax_output,top20_values,top20_indices
+    #                 torch.cuda.empty_cache()
 
-                    w1 = n(w1.t())
-                    v1 = lm(w1)
-                    # w1 = w1.cpu() 
-                    softmax_output_norm = F.softmax(v1, dim=-1)
-                    # softmax_output_norm = softmax_output_norm.cpu()
-                    top20_values_norm, top20_indices_norm = torch.topk(softmax_output_norm, 50, dim=-1)
+    #                 w1 = n(w1.t())
+    #                 v1 = lm(w1)
+    #                 # w1 = w1.cpu() 
+    #                 softmax_output_norm = F.softmax(v1, dim=-1)
+    #                 # softmax_output_norm = softmax_output_norm.cpu()
+    #                 top20_values_norm, top20_indices_norm = torch.topk(softmax_output_norm, 50, dim=-1)
 
-                    neuron_vocab_dic[str(layer)+"_top20_values_norm"] = top20_values_norm.cpu()
-                    neuron_vocab_dic[str(layer)+"_top20_indices_norm"] = top20_indices_norm.cpu()
-                    del w1,v1,softmax_output_norm,top20_values_norm,top20_indices_norm
-                    torch.cuda.empty_cache()
+    #                 neuron_vocab_dic[str(layer)+"_top20_values_norm"] = top20_values_norm.cpu()
+    #                 neuron_vocab_dic[str(layer)+"_top20_indices_norm"] = top20_indices_norm.cpu()
+    #                 del w1,v1,softmax_output_norm,top20_values_norm,top20_indices_norm
+    #                 torch.cuda.empty_cache()
 
-        records_dic[record['case_id']] = r_dic
+    #     records_dic[record['case_id']] = r_dic
 
-    np.save(run_dir/("key.npy"),records_dic)
-    if neuron_vocab:
-        np.save(run_dir/("neuron_vocab_50.npy"),neuron_vocab_dic)
+    # np.save(run_dir/("key.npy"),records_dic)
+    # if neuron_vocab:
+    #     np.save(run_dir/("neuron_vocab_50.npy"),neuron_vocab_dic)
 
 
 
-    print(f"Results are saved in {run_dir}")
+    # print(f"Results are saved in {run_dir}")
 
 
 def get_context_templates(model, tok):

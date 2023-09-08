@@ -81,8 +81,10 @@ def main(
     c_adapt = False,
     neuron_num = 5,
     select_standard = "key_norm",
+    pos_neg_construct = 1,
     M_from_sub = True,
     max_tolerate_fail_num = 10000,
+    qr = False,
 ):
     # Set algorithm-specific variables
     params_class, apply_algo = ALG_DICT[alg_name]#超参数和应用的算法
@@ -95,9 +97,13 @@ def main(
 
     new_name += '_sub'
     new_name += str(neuron_num)
+    new_name +="_"
     new_name += select_standard
-    if not M_from_sub:
-        new_name += 'Mall'
+    new_name += str(pos_neg_construct)
+    if qr:
+        new_name += "_qr"
+    # if not M_from_sub:
+    #     new_name += 'Mall'
 
     if not use_algo:
         new_name += "_zeroshot"
@@ -105,10 +111,10 @@ def main(
         new_name += '_newprompt'
     if real_edit:
         new_name += '_real'
-    if c_noupt:
-        new_name += '_cnoupt'
-    if c_adapt:
-        new_name += '_cadapt'
+    # if c_noupt:
+    #     new_name += '_cnoupt'
+    # if c_adapt:
+    #     new_name += '_cadapt'
 
 
     new_name += '_seq'
@@ -264,6 +270,32 @@ def main(
     real_edit_num = 0
     last_records = None
     fail_seq_number = 0
+
+    #根据使用的方法读取数据集
+    if select_standard in ["mean_dif","mi","f_stat","lr","svm"]:
+        #1.正向前缀
+        pos_prefix_list = []
+        with open(f"{DATA_DIR}/pos_prefix.txt",'r',encoding='utf-8') as f:
+            for line in f.readlines():
+                pos_prefix_list.append(line.strip())
+
+        #2.其他src和对应subject
+        other_src_subject_path = f"{DATA_DIR}/src_subject.txt"#正例，直接把subject填入src中
+        other_src_list = []
+        other_subject_list = []
+        with open(other_src_subject_path,'r',encoding='utf-8') as f:
+            for line in f.readlines():
+                src,subject = line.strip().split('\t')
+                other_src_list.append(src)
+                other_subject_list.append(subject)
+
+        #3.随机前缀
+        random_prefix_list = []
+        with open(f"{DATA_DIR}/random_prefix.txt",'r',encoding='utf-8') as f:
+            for line in f.readlines():
+                random_prefix_list.append(line.strip())
+        
+
     for record_chunks in chunks(ds, 1):#每一次都更新1个
         #更新前判断是否应该更新
         record = record_chunks[0]
@@ -290,6 +322,51 @@ def main(
         start = time()
         #影响因素有model 数据集，new_prompt 编辑数量--可以存在run_dir里面，以后要评测可以直接读
         #直接跑算法，就重新跑一次吧
+        
+        X_text_list = []
+        y_list = []
+        words = []
+        if select_standard in ["mean_dif","mi","f_stat","lr","svm"]:
+            if pos_neg_construct == 1:
+                #正例-372条 
+                for i in range(len(other_src_list)):
+                    X_text_list.append(other_src_list[i])
+                    y_list.append(1)
+                    words.append(record["requested_rewrite"]['subject'])
+                #负例-随机前缀+subject
+                for i in range(len(random_prefix_list)):
+                    X_text_list.append(random_prefix_list[i])
+                    y_list.append(-1)
+                    words.append(record["requested_rewrite"]['subject'])
+                
+            elif pos_neg_construct == 2:
+                #正例-372条 
+                #负例-其他subject
+                for i in range(len(other_src_list)):
+                    X_text_list.append(other_src_list[i])
+                    y_list.append(1)
+                    words.append(record["requested_rewrite"]['subject'])
+                    X_text_list.append(other_src_list[i])
+                    y_list.append(-1)
+                    words.append(other_subject_list[i])
+            else:
+                for i in range(len(other_src_list)):
+                    X_text_list.append(other_src_list[i])
+                    y_list.append(1)
+                    words.append(record["requested_rewrite"]['subject'])
+                    X_text_list.append(other_src_list[i])
+                    y_list.append(-1)
+                    words.append(other_subject_list[i])
+                #正向前缀100条
+                for i in range(len(pos_prefix_list)):
+                    X_text_list.append(pos_prefix_list[i])
+                    y_list.append(1)
+                    words.append(record["requested_rewrite"]['subject'])
+                    X_text_list.append(random_prefix_list[i])
+                    y_list.append(-1)
+                    words.append(record["requested_rewrite"]['subject'])
+            y_list = np.array(y_list)
+
         edited_model,deltas,all_neuron_num = apply_algo(
             model,
             tok,
@@ -304,7 +381,11 @@ def main(
             c_noupt = c_noupt,
             neuron_num = neuron_num,
             select_standard = select_standard,
+            X_text_list = X_text_list,
+            y_list = y_list,
+            words = words,
             M_from_sub = M_from_sub,
+            qr = qr,
             **args_conserve_memory,
             **etc_args,#保存的事先计算好的kv对的地址，但是应该还没算出来
         )
@@ -701,9 +782,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--select_standard",
         type=str,
-        default="key_norm",
+        default="key",
         help="Standard for selecting sub neurons--key_norm/key/random",
     )
+    parser.add_argument(
+        "--pos_neg_construct",
+        type=int,
+        default=1,
+        help="Standard for selecting sub neurons--key_norm/key/random",
+    )
+    #1-正例-372条 负例-随机前缀+subject
+    #2-正例-372条 负例-其他subject
+    #3-正例-372  正向前缀+subject(100）  负例-#1随机前缀+subject(100条)+#2其他subject(372)
+
     parser.add_argument(
         "--M_from_sub",
         action="store_false",
@@ -715,6 +806,12 @@ if __name__ == "__main__":
         type=int,
         default=10000,
         help="Exploring the max editing number, default to 0",
+    )
+
+    parser.add_argument(
+        "--qr",
+        action="store_true",
+        help="Using qr to solve the pseudo-inverse problem",#不用lstsq，因为它和伪逆的结果一致
     )
 
     parser.set_defaults(skip_generation_tests=False, conserve_memory=False)
@@ -748,6 +845,8 @@ if __name__ == "__main__":
         c_adapt= args.c_adapt,
         neuron_num = args.neuron_num,
         select_standard = args.select_standard,
+        pos_neg_construct = args.pos_neg_construct,
         M_from_sub = args.M_from_sub,
-        max_tolerate_fail_num = args.max_tolerate_fail_num
+        max_tolerate_fail_num = args.max_tolerate_fail_num,
+        qr = args.qr
     )
