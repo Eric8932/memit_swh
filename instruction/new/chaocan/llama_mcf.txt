@@ -1,0 +1,78 @@
+# coding=utf-8
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+   --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b_1b.json \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard key  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+   --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b_1k.json \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard key  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b_1w.json \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard key  --c_noupt --c_adapt ;
+
+
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b_1b.json \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mean_dif  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b_1k.json \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mean_dif  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b_1w.json \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mean_dif  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b_2w.json \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mean_dif  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=llama \
+    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b \
+    --hparams_fname=llama_7b_2w.json \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard key  --c_noupt --c_adapt ;
+
+
+
+
+
+
+
+
+
+
+
