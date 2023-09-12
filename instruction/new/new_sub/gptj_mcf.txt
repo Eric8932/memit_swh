@@ -6,31 +6,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --hparams_fname=EleutherAI_gpt-j-6B.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1 --select_standard key  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 10 --select_standard key  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard key  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard key  --c_noupt --c_adapt --qr ;
 
 
 
@@ -51,23 +27,64 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 5000 --select_standard key  --c_noupt --c_adapt ;
 
 
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=EleutherAI/gpt-j-6B \
+    --hparams_fname=EleutherAI_gpt-j-6B_1w.json \
+   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard key  --c_noupt --c_adapt ;
+
 
 
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --alg_name=MEMIT \
     --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
+    --hparams_fname=EleutherAI_gpt-j-6B_1w.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1 --select_standard random  --c_noupt --c_adapt ;
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1000 --select_standard key  --c_noupt --c_adapt ;
 
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --alg_name=MEMIT \
     --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
+    --hparams_fname=EleutherAI_gpt-j-6B_1w.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 10 --select_standard random  --c_noupt --c_adapt ;
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 5000 --select_standard key  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=EleutherAI/gpt-j-6B \
+    --hparams_fname=EleutherAI_gpt-j-6B_2w.json \
+   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard key  --c_noupt --c_adapt ;
+
+
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=EleutherAI/gpt-j-6B \
+    --hparams_fname=EleutherAI_gpt-j-6B_2w.json \
+   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1000 --select_standard key  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=EleutherAI/gpt-j-6B \
+    --hparams_fname=EleutherAI_gpt-j-6B_2w.json \
+   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 5000 --select_standard key  --c_noupt --c_adapt ;
+
+
+
+
+
+
+
 
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --alg_name=MEMIT \
@@ -104,31 +121,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --hparams_fname=EleutherAI_gpt-j-6B.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1 --select_standard mean_dif  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 10 --select_standard mean_dif  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mean_dif  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mean_dif  --c_noupt --c_adapt --qr ;
 
 
 
@@ -154,7 +147,9 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --hparams_fname=EleutherAI_gpt-j-6B.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1 --select_standard mean_dif  --c_noupt --c_adapt --pos_neg_construct 2 ;
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mean_dif  --c_noupt --c_adapt ;
+
+
 
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --alg_name=MEMIT \
@@ -162,12 +157,53 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --hparams_fname=EleutherAI_gpt-j-6B.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 10 --select_standard mean_dif  --c_noupt --c_adapt --pos_neg_construct 2  ;
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1000 --select_standard mean_dif  --c_noupt --c_adapt ;
 
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --alg_name=MEMIT \
     --model_name=EleutherAI/gpt-j-6B \
     --hparams_fname=EleutherAI_gpt-j-6B.json \
+   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 5000 --select_standard mean_dif  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=EleutherAI/gpt-j-6B \
+    --hparams_fname=EleutherAI_gpt-j-6B_1w.json \
+   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mean_dif  --c_noupt --c_adapt ;
+
+
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=EleutherAI/gpt-j-6B \
+    --hparams_fname=EleutherAI_gpt-j-6B_1w.json \
+   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1000 --select_standard mean_dif  --c_noupt --c_adapt ;
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=EleutherAI/gpt-j-6B \
+    --hparams_fname=EleutherAI_gpt-j-6B_1w.json \
+   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
+    --num_edits=100 \
+    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 5000 --select_standard mean_dif  --c_noupt --c_adapt ;
+
+
+
+
+
+
+
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
+    --alg_name=MEMIT \
+    --model_name=EleutherAI/gpt-j-6B \
+    --hparams_fname=EleutherAI_gpt-j-6B_2w.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mean_dif  --c_noupt --c_adapt --pos_neg_construct 2  ;
@@ -177,7 +213,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --alg_name=MEMIT \
     --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
+    --hparams_fname=EleutherAI_gpt-j-6B_2w.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1000 --select_standard mean_dif  --c_noupt --c_adapt --pos_neg_construct 2  ;
@@ -185,28 +221,11 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --alg_name=MEMIT \
     --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
+    --hparams_fname=EleutherAI_gpt-j-6B_2w.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 5000 --select_standard mean_dif  --c_noupt --c_adapt --pos_neg_construct 2  ;
 
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1 --select_standard mi  --c_noupt --c_adapt ;
-
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard mi  --c_noupt --c_adapt ;
 
 
 
@@ -229,32 +248,6 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --hparams_fname=EleutherAI_gpt-j-6B.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1 --select_standard f_stat  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 10 --select_standard f_stat  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard f_stat  --c_noupt --c_adapt ;
-
-
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1000 --select_standard f_stat  --c_noupt --c_adapt ;
 
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
@@ -267,29 +260,6 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
 
 
 
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1 --select_standard lr  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 10 --select_standard lr  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard lr  --c_noupt --c_adapt ;
 
 
 
@@ -318,32 +288,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --hparams_fname=EleutherAI_gpt-j-6B.json \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1 --select_standard svm  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 10 --select_standard svm  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard svm  --c_noupt --c_adapt ;
-
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 100 --select_standard svm  --c_noupt --c_adapt --qr ;
-
 
 
 
@@ -363,21 +308,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --num_edits=100 \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 5000 --select_standard svm  --c_noupt --c_adapt ;
 
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 1 --select_standard svm  --c_noupt --c_adapt --pos_neg_construct 2 ;
 
-CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
-    --alg_name=MEMIT \
-    --model_name=EleutherAI/gpt-j-6B \
-    --hparams_fname=EleutherAI_gpt-j-6B.json \
-   --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
-    --num_edits=100 \
-    --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 10 --select_standard svm  --c_noupt --c_adapt --pos_neg_construct 2  ;
 
 CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
     --alg_name=MEMIT \
@@ -404,6 +335,7 @@ CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_sub \
    --model_path=/apdcephfs/share_1157269/yirenchen/wenhangshi/llama-7b_tmp/models--EleutherAI--gpt-j-6B/snapshots/f98c709453c9402b1309b032f40df1c10ad481a2/ \
     --num_edits=100 \
     --dataset_size_limit=500 --ds_name mcf --eval_edited_freq 40 --loc_data_size 10000 --new_prompt --real_edit --orig_loc --final_loc --neuron_num 5000 --select_standard svm  --c_noupt --c_adapt --pos_neg_construct 2  ;
+
 
 
 

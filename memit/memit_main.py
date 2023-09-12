@@ -109,7 +109,7 @@ def execute_memit(
 
     # Compute z for final layer
     context_templates = get_context_templates(model, tok)#prefix，用5个常见prompt开头迅速生成长为10的序列，以及一个{}
-    z_layer = hparams.layers[-1]#最后一层
+    z_layer = hparams.layers[-1]#目标层最后一层
     z_list = []
 
     #针对不同的request，计算出最后一层z_layer要输出的激活值，训练得到
@@ -139,7 +139,7 @@ def execute_memit(
         # Compute k/v pair if not loaded from cache
         start = time()
         if not data_loaded:
-            #先计算最后一层需要改变的变化量 z
+            #得到目标层最后一层的值 z
             cur_z = compute_z(#通过梯度下降同时优化weight decay, kl_loss(1 prompt), nll_loss(5*1 prompt)，得到目标层的目标激活值
                 model,
                 tok,
@@ -329,7 +329,7 @@ def get_cov(
             STATS_DIR,
             mom2_dataset,
             to_collect=["mom2"],
-            sample_size=mom2_n_samples,
+            sample_size=None,
             precision=mom2_dtype,
             old_stat=COV_CACHE[key],
             last_requests=last_requests,

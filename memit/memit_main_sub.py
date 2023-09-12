@@ -74,14 +74,18 @@ def apply_memit_to_model_sub(#方法
             upd_matrix = key_mat @ val_mat.T
             if all_neuron_num is None:
                 all_neuron_num = nethook.get_parameter(model, w_name).shape[1]
-            w = nethook.get_parameter(model, w_name)[:,top_abs_indices]
-            upd_matrix = upd_matrix_match_shape(upd_matrix, w.shape)
+            # w = nethook.get_parameter(model, w_name)[:,top_abs_indices]#123
+            w = nethook.get_parameter(model, w_name)
+            upd_matrix = upd_matrix_match_shape(upd_matrix, w[:,top_abs_indices].shape)#123
 
             # if return_orig_weights and w_name not in weights_copy:
             #     weights_copy[w_name] = w.detach().clone()
 
-            w[...] += upd_matrix.float()#+=还是保持fp16，而且这种方法不会影响精度. #github
-            # w[...] += upd_matrix.half()#+=还是保持fp16，而且这种方法不会影响精度.
+            # w[...] += upd_matrix.float()#+=还是保持fp16，而且这种方法不会影响精度. #github
+            # w[...] += upd_matrix.half()#+=还是保持fp16，而且这种方法不会影响精度.123
+
+            w[:,top_abs_indices] += upd_matrix.float()#+=还是保持fp16，而且这种方法不会影响精度. #github
+            # w[:,top_abs_indices] += upd_matrix.half()#+=还是保持fp16，而且这种方法不会影响精度.123
 
     print(f"New weights successfully inserted into {list(deltas.keys())}")
 
@@ -292,7 +296,7 @@ def execute_memit(
                             X[~pos_class].mean(axis=0))
             
             ranks = np.argsort(mean_dif)
-            filter_size = 2000 if neuron_num <2000 else 7000
+            filter_size = 2000 if neuron_num <2000 else 20000
             filtered_subset = np.sort(ranks[-filter_size:])
             X_filtered = X[:, filtered_subset]
             top_filtered_ranks = get_heuristic_neuron_ranking(X_filtered, y, select_standard,neuron_num)
@@ -301,7 +305,7 @@ def execute_memit(
 
             
         top_abs_indices = top_abs_indices.sort().values
-        print(top_abs_indices)
+        # print(top_abs_indices)
         
         #得到了top5_abs_indices
 
@@ -365,9 +369,11 @@ def execute_memit(
         
         #cov的维度应该就是11008*11008，用top5_abs_indices筛选出来新的cov和layer_ks
         # cov = cov[top_abs_indices, :][:, top_abs_indices].cpu()
-        cov = cov[top_abs_indices, :].double().cpu()
 
-        sub_layer_ks = layer_ks[top_abs_indices].double().cpu()
+        cov = cov[top_abs_indices, :].double().cpu()#123
+        # cov = cov.double().cpu()#123
+
+        sub_layer_ks = layer_ks[top_abs_indices].double().cpu()#123
 
         # Compute update in double precision
         # layer_ks, targets = (
@@ -382,12 +388,17 @@ def execute_memit(
         
 
         # adj_k = torch.linalg.solve(
-        #     # hparams.mom2_update_weight * cov.double() + layer_ks @ layer_ks.T,
+        #     hparams.mom2_update_weight * cov.double() + layer_ks @ layer_ks.T,
         #     layer_ks,
         # )
+
         if not qr:
-            pseudo_inv = torch.linalg.pinv(hparams.mom2_update_weight*cov + sub_layer_ks @ layer_ks.T)
-            adj_k = (layer_ks.T @ pseudo_inv).T
+            #算伪逆太慢了,而且最小二乘的结果估计是一样的
+            solution = torch.linalg.lstsq((hparams.mom2_update_weight*cov + sub_layer_ks @ layer_ks.T).T,layer_ks)
+            adj_k = solution[0]
+
+            # pseudo_inv = torch.linalg.pinv(hparams.mom2_update_weight*cov + sub_layer_ks @ layer_ks.T)
+            # adj_k = (layer_ks.T @ pseudo_inv).T
         else:
             Q, R = torch.linalg.qr((hparams.mom2_update_weight*cov + sub_layer_ks @ layer_ks.T).T)
             y = Q.T @ layer_ks
@@ -409,7 +420,8 @@ def execute_memit(
         with torch.no_grad():
             #这样写没问题，并且还稍微提升了一点表现，所以最终的表现差异应该是来自于fp16和fp32的转换
             weights[weight_name][:,top_abs_indices] = weights_copy[weight_name][:,top_abs_indices] + upd_matrix.float()#github
-            # weights[weight_name][:,top_abs_indices] = weights_copy[weight_name][:,top_abs_indices] + upd_matrix.half()#变成了fp32，只影响后续的计算
+            # weights[weight_name][:,top_abs_indices] = weights_copy[weight_name][:,top_abs_indices] + upd_matrix.half()#123变成了fp32，只影响后续的计算
+            # weights[weight_name][...] = weights_copy[weight_name] + upd_matrix.half()#123
             # print(weights_copy[weight_name].device,weights_copy[weight_name].dtype)
             deltas[weight_name] = (
                 adj_k.detach().cpu(),
