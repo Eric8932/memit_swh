@@ -88,6 +88,11 @@ def main(
     new_name += ds_name
     new_name += '_'
     new_name += str(num_edits)
+
+    if max_tolerate_fail_num<10000:
+        new_name += "_maxt"
+        new_name += str(max_tolerate_fail_num)
+
     if not use_algo:
         new_name += "_zeroshot"
     if new_prompt:
@@ -255,6 +260,7 @@ def main(
 
     fail_seq_number = 0
 
+    weights_final_copy = None
     if max_tolerate_fail_num <10000:
         weights_final_copy = {
             f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
@@ -364,23 +370,27 @@ def main(
                 fail_seq_number +=1 
             else:
                 fail_seq_number = 0
-                weights_final_copy = {
-                    f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
-                        model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
-                    ).detach().clone()
-                    for layer in hparams.layers#critical layers
-                }
+                if weights_final_copy is not None:
+                    del weights_final_copy
+                    weights_final_copy = {
+                        f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
+                            model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
+                        ).detach().clone()
+                        for layer in hparams.layers#critical layers
+                    }
         else:
             if not metrics['post']['rewrite_prompts_correct'][0]:
                 fail_seq_number +=1 
             else:
-                weights_final_copy = {
-                    f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
-                        model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
-                    ).detach().clone()
-                    for layer in hparams.layers#critical layers
-                }
                 fail_seq_number = 0
+                if weights_final_copy is not None:
+                    del weights_final_copy
+                    weights_final_copy = {
+                        f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
+                            model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
+                        ).detach().clone()
+                        for layer in hparams.layers#critical layers
+                    }
 
 
         #把编辑过的以及loc全部评估一遍
@@ -405,8 +415,7 @@ def main(
             with open(out_file_eval, "w") as f:
                 json.dump(eval_res_list, f, indent=1)
 
-        #连续编辑失败次数超过max_edit_num，就不编辑了，break
-        if fail_seq_number > max_tolerate_fail_num:
+        if fail_seq_number == max_tolerate_fail_num:
             print("real_edit_num: ",real_edit_num)
             #把模型参数的值改成
             with torch.no_grad():

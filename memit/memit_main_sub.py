@@ -46,11 +46,13 @@ def apply_memit_to_model_sub(#方法
     c_noupt = False,
     neuron_num = 5,
     select_standard = "key_norm",
+    filter_standard = "1",
     X_text_list = None,
     y_list = None,
     words = None,
     M_from_sub = True,
     qr = False,
+    z_diff = False,
 ) -> Tuple[AutoModelForCausalLM, Dict[str, Any]]:
     """
     Returns a model with the desired changes.
@@ -63,8 +65,9 @@ def apply_memit_to_model_sub(#方法
     if copy:
         model = deepcopy(model)
 
-    deltas = execute_memit(model, tok, requests, hparams, cache_template=cache_template,last_requests=last_requests,c_noupt=c_noupt,neuron_num=neuron_num,
-                           select_standard=select_standard,X_text_list=X_text_list,y=y_list,words=words,M_from_sub=M_from_sub,qr=qr)#每一层的变化量（critical layers的W_out）
+    deltas,z = execute_memit(model, tok, requests, hparams, cache_template=cache_template,last_requests=last_requests,c_noupt=c_noupt,neuron_num=neuron_num,
+                           select_standard=select_standard,filter_standard=filter_standard,
+                           X_text_list=X_text_list,y=y_list,words=words,M_from_sub=M_from_sub,qr=qr,z_diff=z_diff)#每一层的变化量（critical layers的W_out）
 
 
     all_neuron_num = None
@@ -89,7 +92,7 @@ def apply_memit_to_model_sub(#方法
 
     print(f"New weights successfully inserted into {list(deltas.keys())}")
 
-    return model,deltas,all_neuron_num
+    return model,deltas,all_neuron_num,z
 
 #现在还只针对每次单条编辑
 def execute_memit(
@@ -102,11 +105,13 @@ def execute_memit(
     c_noupt = False,#如果为True，就在更新前把所有层的C都算出来
     neuron_num = 5,
     select_standard = "key_norm",#key key_norm random
+    filter_standard = "1",
     X_text_list = None,
     y = None,
     words = None,
     M_from_sub = True,#M为部分neuron的结果--直接减就行
     qr = False,
+    z_diff = False,
 ) -> Dict[str, Tuple[torch.Tensor]]:
     """
     Executes the MEMIT update algorithm for the specified update at the specified layer
@@ -255,7 +260,7 @@ def execute_memit(
 
         #275365非常慢，这个明天再全部跑一遍.太慢并且效果还不好，可以考虑不要
         #MI非常慢，但也要考虑
-        elif select_standard in ["mean_dif","mi","f_stat","lr","svm"]:
+        elif select_standard in ["mean_dif","mi","f_stat","lr","svm","key_pos"]:
             #构造数据集应该提前做，然后每层再来计算
             
             #该函数得到每个样本在last subject token处的表征.现在有X_text_list--X是每个样本对应的向量
@@ -282,27 +287,44 @@ def execute_memit(
                     mi = mutual_info_classif(X, y)
                     ranks = np.argsort(mi)
 
+                #abs合理嘛--abs找出差异最大的地方。
+                #但我不仅要差异大，我要的就是值比你大--你不激活的地方我激活
                 elif method == 'mean_dif':
                     mean_dif = np.abs(X[pos_class].mean(axis=0) -
                                     X[~pos_class].mean(axis=0))
+                    # mean_dif = X[pos_class].mean(axis=0) -X[~pos_class].mean(axis=0)
                     ranks = np.argsort(mean_dif)
+                elif method == 'key_pos':
+                    pos_key = X[pos_class].mean(axis=0)
+                    ranks = np.argsort(pos_key)
                 else:
                     raise ValueError('Invalid method')
                 ranks = ranks.flatten()
                 return ranks[-neuron_num:]
             
             pos_class = y == 1
-            mean_dif = np.abs(X[pos_class].mean(axis=0) -
-                            X[~pos_class].mean(axis=0))
-            
-            ranks = np.argsort(mean_dif)
-            filter_size = 2000 if neuron_num <2000 else 20000
-            filtered_subset = np.sort(ranks[-filter_size:])
-            X_filtered = X[:, filtered_subset]
-            top_filtered_ranks = get_heuristic_neuron_ranking(X_filtered, y, select_standard,neuron_num)
+            if filter_standard =="mean_dif":
+                mean_dif = np.abs(X[pos_class].mean(axis=0) -
+                                X[~pos_class].mean(axis=0))
+                # mean_dif = X[pos_class].mean(axis=0) -X[~pos_class].mean(axis=0)
+                ranks = np.argsort(mean_dif)
+                filter_size = 2000 if neuron_num <2000 else 20000
+                filtered_subset = np.sort(ranks[-filter_size:])
+                X_filtered = X[:, filtered_subset]
+                top_filtered_ranks = get_heuristic_neuron_ranking(X_filtered, y, select_standard,neuron_num)
 
-            top_abs_indices = torch.tensor(filtered_subset[top_filtered_ranks])
+                top_abs_indices = torch.tensor(filtered_subset[top_filtered_ranks])
+            elif filter_standard == "key_pos":
+                pos_key = X[pos_class].mean(axis=0)
+                ranks = np.argsort(pos_key)
+                filter_size = 2000 if neuron_num <2000 else 20000
+                filtered_subset = np.sort(ranks[-filter_size:])
+                X_filtered = X[:, filtered_subset]
+                top_filtered_ranks = get_heuristic_neuron_ranking(X_filtered, y, select_standard,neuron_num)
 
+                top_abs_indices = torch.tensor(filtered_subset[top_filtered_ranks])
+            else:
+                top_abs_indices = torch.tensor(get_heuristic_neuron_ranking(X, y, select_standard,neuron_num))
             
         top_abs_indices = top_abs_indices.sort().values
         # print(top_abs_indices)
@@ -436,6 +458,59 @@ def execute_memit(
             del x
         torch.cuda.empty_cache()
 
+    if z_diff:
+        cache_z = {}
+        cache_z['zs'] = zs.cpu()
+        cur_v = get_module_input_output_at_words(
+            model,
+            tok,
+            z_layer,
+            context_templates=[request["prompt"] for request in requests],
+            words=[request["subject"] for request in requests],
+            module_template=hparams.layer_module_tmp,#这里之前只得到RS，因此直接输入一整层。但我要得到W_out的输入
+            fact_token_strategy=hparams.fact_token,
+        )[1].T.cpu()
+        #这里得到层输出
+
+        cur_v = cur_v.cpu()
+        cache_z['cur_zs'] = cur_v#1*11008
+
+        #得到MLP层的输入作为hidden_state  
+        hs = get_module_input_output_at_words(
+            model,
+            tok,
+            z_layer,
+            context_templates=[request["prompt"] for request in requests],
+            words=[request["subject"] for request in requests],
+            module_template=hparams.mlp_module_tmp,#这里之前只得到RS，因此直接输入一整层。但我要得到W_out的输入
+            fact_token_strategy=hparams.fact_token,
+        )[0].T.cpu()
+
+        #得到W_out层的输入，输入经过W_out再加上HS作为该层的输出 
+        cur_k = get_module_input_output_at_words(
+            model,
+            tok,
+            z_layer,
+            context_templates=[request["prompt"] for request in requests],
+            words=[request["subject"] for request in requests],
+            module_template=hparams.rewrite_module_tmp,#这里之前只得到RS，因此直接输入一整层。但我要得到W_out的输入
+            fact_token_strategy=hparams.fact_token,
+        )[0]   
+
+        #每一层都有重要的neuron，但是因为最后一层刚好就直接输出了，只选取最后一层的
+        cur_k[:,top_abs_indices] *=1.1
+
+
+        if 'gpt-j' not in tok.name_or_path:
+            target_l = model.model.layers[10].mlp.down_proj
+        else:
+            target_l = model.transformer.h[8].mlp.fc_out
+        new_v = target_l(cur_k).cpu()
+
+        cache_z['new_zs'] = new_v+hs
+        
+    else:
+        cache_z = None
     # Restore state of original model
     with torch.no_grad():
         for k, v in weights.items():
@@ -443,7 +518,8 @@ def execute_memit(
 
     print(f"Deltas successfully computed for {list(weights.keys())}")
 
-    return deltas
+
+    return deltas ,cache_z
 
 
 def get_cov(

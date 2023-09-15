@@ -81,10 +81,12 @@ def main(
     c_adapt = False,
     neuron_num = 5,
     select_standard = "key_norm",
+    filter_standard = "1",
     pos_neg_construct = 1,
     M_from_sub = True,
     max_tolerate_fail_num = 10000,
     qr = False,
+    z_diff = False,
 ):
     # Set algorithm-specific variables
     params_class, apply_algo = ALG_DICT[alg_name]#超参数和应用的算法
@@ -106,6 +108,10 @@ def main(
     #     new_name += 'Mall'
     new_name += '_'
     new_name += hparams_fname.split(".")[0]
+
+    if max_tolerate_fail_num<10000:
+        new_name += "_maxt"
+        new_name += str(max_tolerate_fail_num)
 
     if not use_algo:
         new_name += "_zeroshot"
@@ -274,7 +280,7 @@ def main(
     fail_seq_number = 0
 
     #根据使用的方法读取数据集
-    if select_standard in ["mean_dif","mi","f_stat","lr","svm"]:
+    if select_standard in ["mean_dif","mi","f_stat","lr","svm","key_pos"]:
         #1.正向前缀
         pos_prefix_list = []
         with open(f"{DATA_DIR}/pos_prefix.txt",'r',encoding='utf-8') as f:
@@ -297,14 +303,15 @@ def main(
             for line in f.readlines():
                 random_prefix_list.append(line.strip())
         
-    #如果有max_tolerate_num，就针对
-    # if max_tolerate_fail_num <10000:
-    #     weights_final_copy = {
-    #         f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
-    #             model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
-    #         ).detach().clone()
-    #         for layer in hparams.layers#critical layers
-    #     }
+    # 如果有max_tolerate_num，就针对
+    weights_final_copy = None
+    if max_tolerate_fail_num <10000:
+        weights_final_copy = {
+            f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
+                model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
+            ).detach().clone()
+            for layer in hparams.layers#critical layers
+        }
     for record_chunks in chunks(ds, 1):#每一次都更新1个
         #更新前判断是否应该更新
         record = record_chunks[0]
@@ -335,7 +342,7 @@ def main(
         X_text_list = []
         y_list = []
         words = []
-        if select_standard in ["mean_dif","mi","f_stat","lr","svm"]:
+        if select_standard in ["mean_dif","mi","f_stat","lr","svm","key_pos"]:
             if pos_neg_construct == 1:
                 #正例-372条 
                 for i in range(len(other_src_list)):
@@ -358,7 +365,8 @@ def main(
                     X_text_list.append(other_src_list[i])
                     y_list.append(-1)
                     words.append(other_subject_list[i])
-            else:
+            elif pos_neg_construct == 3:
+                #正向前缀300+其他src，负例：随机前缀300+其他src
                 for i in range(len(other_src_list)):
                     X_text_list.append(other_src_list[i])
                     y_list.append(1)
@@ -366,17 +374,78 @@ def main(
                     X_text_list.append(other_src_list[i])
                     y_list.append(-1)
                     words.append(other_subject_list[i])
-                #正向前缀100条
-                for i in range(len(pos_prefix_list)):
-                    X_text_list.append(pos_prefix_list[i])
+                for j in range(3):
+                    for i in range(len(pos_prefix_list)):
+                        X_text_list.append(pos_prefix_list[i])
+                        y_list.append(1)
+                        words.append(record["requested_rewrite"]['subject'])
+                        X_text_list.append(random_prefix_list[i+j*len(pos_prefix_list)])
+                        y_list.append(-1)
+                        words.append(record["requested_rewrite"]['subject'])
+            elif pos_neg_construct == 4:
+                #正例：正向*3 负例：随机前缀
+                for j in range(3):
+                    for i in range(len(pos_prefix_list)):
+                        X_text_list.append(pos_prefix_list[i])
+                        y_list.append(1)
+                        words.append(record["requested_rewrite"]['subject'])
+                        X_text_list.append(random_prefix_list[i+j*len(pos_prefix_list)])
+                        y_list.append(-1)
+                        words.append(record["requested_rewrite"]['subject'])
+                    
+            elif pos_neg_construct == 5:
+                #正例：正向*3 负例：其他src
+                for j in range(3):
+                    for i in range(len(pos_prefix_list)):
+                        X_text_list.append(pos_prefix_list[i])
+                        y_list.append(1)
+                        words.append(record["requested_rewrite"]['subject'])
+                        X_text_list.append(other_src_list[i+j*len(pos_prefix_list)])
+                        y_list.append(-1)
+                        words.append(other_subject_list[i+j*len(pos_prefix_list)])
+                        
+            elif pos_neg_construct == 6:
+                #正例*2，负例：随机前缀+src
+                for i in range(len(other_src_list)):
+                    X_text_list.append(other_src_list[i])
+                    y_list.append(1)
+                    words.append(record["requested_rewrite"]['subject'])
+                    X_text_list.append(other_src_list[i])
+                    y_list.append(-1)
+                    words.append(other_subject_list[i])
+                for i in range(len(random_prefix_list)):
+                    X_text_list.append(other_src_list[i])
                     y_list.append(1)
                     words.append(record["requested_rewrite"]['subject'])
                     X_text_list.append(random_prefix_list[i])
                     y_list.append(-1)
                     words.append(record["requested_rewrite"]['subject'])
+                
+                #原来的3
+                # for i in range(len(other_src_list)):
+                #     X_text_list.append(other_src_list[i])
+                #     y_list.append(1)
+                #     words.append(record["requested_rewrite"]['subject'])
+                #     X_text_list.append(other_src_list[i])
+                #     y_list.append(-1)
+                #     words.append(other_subject_list[i])
+                # #正向前缀100条
+                # for i in range(len(pos_prefix_list)):
+                #     X_text_list.append(pos_prefix_list[i])
+                #     y_list.append(1)
+                #     words.append(record["requested_rewrite"]['subject'])
+                #     X_text_list.append(random_prefix_list[i])
+                #     y_list.append(-1)
+                #     words.append(record["requested_rewrite"]['subject'])
+
+                
+
+                
+                
+
             y_list = np.array(y_list)
 
-        edited_model,deltas,all_neuron_num = apply_algo(
+        edited_model,deltas,all_neuron_num,z = apply_algo(
             model,
             tok,
             [
@@ -390,14 +459,18 @@ def main(
             c_noupt = c_noupt,
             neuron_num = neuron_num,
             select_standard = select_standard,
+            filter_standard = filter_standard,
             X_text_list = X_text_list,
             y_list = y_list,
             words = words,
             M_from_sub = M_from_sub,
             qr = qr,
+            z_diff=z_diff,
             **args_conserve_memory,
             **etc_args,#保存的事先计算好的kv对的地址，但是应该还没算出来
         )
+        if z_diff:
+            np.save(run_dir/("z_"+str(record["case_id"])+".npy"),z)
         if c_adapt:
             last_records = [
                 record["requested_rewrite"]["prompt"].format(record["requested_rewrite"]['subject']) +" "+ record["requested_rewrite"]["target_new"]["str"]
@@ -457,27 +530,32 @@ def main(
         torch.cuda.empty_cache()
 
         if args.ds_name == 'zsre':
-            if not metrics['post']['rewrite_predin'][0][1]:
+            if not metrics['post']['rewrite_predin'][0][1]:#做错了
                 fail_seq_number +=1 
             else:
                 fail_seq_number = 0
-                # weights_final_copy = {
-                #     f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
-                #         model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
-                #     ).detach().clone()
-                #     for layer in hparams.layers#critical layers
-                # }
+                if weights_final_copy is not None:
+                    del weights_final_copy
+                    weights_final_copy = {
+                        f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
+                            model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
+                        ).detach().clone()
+                        for layer in hparams.layers#critical layers
+                    }
         else:
             if not metrics['post']['rewrite_prompts_correct'][0]:
                 fail_seq_number +=1 
             else:
-                # weights_final_copy = {
-                #     f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
-                #         model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
-                #     ).detach().clone()
-                #     for layer in hparams.layers#critical layers
-                # }
                 fail_seq_number = 0
+                if weights_final_copy is not None:
+                    del weights_final_copy
+                    weights_final_copy = {
+                        f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
+                            model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
+                        ).detach().clone()
+                        for layer in hparams.layers#critical layers
+                    }
+                
 
         #把编辑过的评估一遍
         if (edit_num+1)%eval_edited_freq==0:
@@ -501,13 +579,13 @@ def main(
             with open(out_file_eval, "w") as f:
                 json.dump(eval_res_list, f, indent=1)
 
-        if fail_seq_number > max_tolerate_fail_num:
+        if fail_seq_number == max_tolerate_fail_num:
             print("real_edit_num: ",real_edit_num)
             #把模型参数的值改成
-            # with torch.no_grad():
-            #     for k, v in model.named_parameters():
-            #         if k in weights_final_copy:
-            #             v[...] = weights_final_copy[k]
+            with torch.no_grad():
+                for k, v in model.named_parameters():
+                    if k in weights_final_copy:
+                        v[...] = weights_final_copy[k]
             break
         #     loc_start= time()
         #     if args.ds_name == 'zsre':
@@ -812,6 +890,12 @@ if __name__ == "__main__":
         help="Standard for selecting sub neurons--key_norm/key/random",
     )
     parser.add_argument(
+        "--filter_standard",
+        type=str,
+        default="1",
+        help="Standard for filtering sub neurons--mean_dif/key_pos",
+    )
+    parser.add_argument(
         "--pos_neg_construct",
         type=int,
         default=1,
@@ -838,6 +922,12 @@ if __name__ == "__main__":
         "--qr",
         action="store_true",
         help="Using qr to solve the pseudo-inverse problem",#不用lstsq，因为它和伪逆的结果一致
+    )
+
+    parser.add_argument(
+        "--z_diff",
+        action="store_true",
+        help="Saving z and cur_zs after editing, to explore the difference",#不用lstsq，因为它和伪逆的结果一致
     )
 
     parser.set_defaults(skip_generation_tests=False, conserve_memory=False)
@@ -871,8 +961,10 @@ if __name__ == "__main__":
         c_adapt= args.c_adapt,
         neuron_num = args.neuron_num,
         select_standard = args.select_standard,
+        filter_standard = args.filter_standard,
         pos_neg_construct = args.pos_neg_construct,
         M_from_sub = args.M_from_sub,
         max_tolerate_fail_num = args.max_tolerate_fail_num,
-        qr = args.qr
+        qr = args.qr,
+        z_diff = args.z_diff
     )
