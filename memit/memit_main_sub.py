@@ -326,6 +326,8 @@ def execute_memit(
             else:
                 top_abs_indices = torch.tensor(get_heuristic_neuron_ranking(X, y, select_standard,neuron_num))
             
+        if z_diff:
+            b = top_abs_indices
         top_abs_indices = top_abs_indices.sort().values
         # print(top_abs_indices)
         
@@ -498,8 +500,9 @@ def execute_memit(
         )[0]   
 
         #每一层都有重要的neuron，但是因为最后一层刚好就直接输出了，只选取最后一层的
-        cur_k[:,top_abs_indices] *=1.1
-
+        # cur_k[:,top_abs_indices] *=1.1
+        c = torch.linspace(1.0,1.2, steps=neuron_num).cuda()
+        cur_k[:,b] *=c
 
         if 'gpt-j' not in tok.name_or_path:
             target_l = model.model.layers[10].mlp.down_proj

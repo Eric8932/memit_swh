@@ -328,9 +328,12 @@ def generate_in_acc(model, prompts: typing.List[str], target_true, target_new, m
         if temp_target_new in real_pred:
             predin_new = True
 
-        nor_true = normalize_text(temp_target_true,special_tokens)
-        nor_new = normalize_text(temp_target_new,special_tokens)
-        nor_pred = normalize_text(real_pred,special_tokens)
+        # nor_true = normalize_text(temp_target_true,special_tokens)
+        # nor_new = normalize_text(temp_target_new,special_tokens)
+        # nor_pred = normalize_text(real_pred,special_tokens)
+        nor_true = temp_target_true
+        nor_new = temp_target_new
+        nor_pred = real_pred
         if nor_true == nor_pred[:len(nor_true)]:
             equl_acc_true = True
         if nor_new == nor_pred[:len(nor_new)]:
@@ -549,8 +552,10 @@ def mcf_loc_batch(model, tokenizer, data_loader,snips,vec):
             #改成准确生成
             for t, p in zip(trg, pred):
                 acc_or_not = False
-                t = normalize_text(t.lower().strip(),special_tokens)
-                if t==  normalize_text(p.lower().strip(),special_tokens)[:len(t)]:
+                # t = normalize_text(t.lower().strip(),special_tokens)
+                # if t==  normalize_text(p.lower().strip(),special_tokens)[:len(t)]:
+                t = t.lower().strip()
+                if t== p.lower().strip()[:len(t)]:
                     acc_or_not= True
                 acc.append(acc_or_not)
 

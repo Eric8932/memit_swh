@@ -150,8 +150,8 @@ def get_reprs_at_idxs(
     )
     module_name = module_template.format(layer)
 
-    if module_name == "transformer.h.8":#就是这里有问题，这个得不到任何输入，不知道有没有输出。只有在GPT-J算cur_zs时用到，这时只要输出
-        module_name = "transformer.h.8.mlp.fc_out"
+    # if module_name == "transformer.h.8":#就是这里有问题，这个得不到任何输入，不知道有没有输出。只有在GPT-J算cur_zs时用到，这时只要输出
+    #     module_name = "transformer.h.8.mlp.fc_out"
     to_return = {"in": [], "out": []}
 
     def _process(cur_repr, batch_idxs, key):
@@ -181,8 +181,16 @@ def get_reprs_at_idxs(
                 retain_output=tout,
             ) as tr:
                 model(**contexts_tok)
+
+        # print(module_name)
+        # print(tr.input)#没有输入，但是有输出
+        # print(tr.output)
+
         if tin:
-            _process(tr.input, batch_idxs, "in")
+            if module_name == "transformer.h.8":
+                _process(tr.output, batch_idxs, "in")#tr.input是空的。所有的该情况，都只用out，因此在这里用tr.output把[0]的位置填上
+            else:
+                _process(tr.input, batch_idxs, "in")
         if tout:
             _process(tr.output, batch_idxs, "out")
 

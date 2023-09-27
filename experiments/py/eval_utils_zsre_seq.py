@@ -30,7 +30,7 @@ def edit_or_not(
     )
     special_tokens = [tok.bos_token,tok.eos_token,tok.pad_token,tok.unk_token]
     target_new = target_new["str"].lower().strip()
-    target_new = normalize_text(target_new,special_tokens)
+    # target_new = normalize_text(target_new,special_tokens)
     
     rewrite_prompts = [record["requested_rewrite"]["prompt"].format(subject)]#只有一条
     input = tok(rewrite_prompts,return_tensors="pt").to('cuda')
@@ -41,8 +41,10 @@ def edit_or_not(
             )[0][len(rewrite_prompts[0]):]
     
     
-    target_new = normalize_text(target_new.lower().strip(),special_tokens)
-    real_pred = normalize_text(pred.lower().strip(),special_tokens)[:len(target_new)]
+    # target_new = normalize_text(target_new.lower().strip(),special_tokens)
+    # real_pred = normalize_text(pred.lower().strip(),special_tokens)[:len(target_new)]
+    target_new = target_new.lower().strip()
+    real_pred = pred.lower().strip()[:len(target_new)]
 
     if real_pred == target_new:
         return False
@@ -284,8 +286,10 @@ def generate_in_acc(model, prompts: typing.List[str], target,model_name,model_pa
         if temp_t in real_pred:#生成在里面
             predin = True
             
-        nor_t = normalize_text(temp_t,special_tokens)
-        nor_pred = normalize_text(real_pred,special_tokens)
+        # nor_t = normalize_text(temp_t,special_tokens)
+        # nor_pred = normalize_text(real_pred,special_tokens)
+        nor_t = temp_t
+        nor_pred = real_pred
         if nor_t == nor_pred[:len(nor_t)]:
             equl_acc = True
         
@@ -370,8 +374,10 @@ def zsre_loc_batch(model, tokenizer, data_loader,snips,vec):
             for t, p in zip(trg, pred):
                 acc_or_not = False
                 #标准化+取出target长度
-                t = normalize_text(t.lower().strip(),special_tokens)
-                if t ==  normalize_text(p.lower().strip(),special_tokens)[:len(t)]:
+                # t = normalize_text(t.lower().strip(),special_tokens)
+                t = t.lower().strip()
+                # if t ==  normalize_text(p.lower().strip(),special_tokens)[:len(t)]:
+                if t == p.lower().strip()[:len(t)]:
                     acc_or_not= True
                 acc.append(acc_or_not)
             acc = torch.tensor(acc).long()

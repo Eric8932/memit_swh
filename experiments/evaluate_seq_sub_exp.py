@@ -49,9 +49,10 @@ LOC_DICT = {
     "mcf": MCF_Loc,
 }
 
-
-#1.一条一条样本遍历 2.先判断是否是需要编辑的样本，否则不放进来 
-#3.针对edited算吧，最后评测的时候，再把模型重新读取一下（loc在zsre里完全不相关，但是mcf里还是挺接近的）
+# 直接记录 src+para中能够做对的（分为一开始就能做对的，和编辑后能做对的）
+# 第一个target token（如果第一个token预测对，后面token肯定也对），在最后一个token处，每层表征的经过映射后（有无LN），的排名和概率
+# 两个模型，两个，都跑200条？
+#场景不应该是连续编辑
 
 def main(
     alg_name: str,
@@ -102,10 +103,7 @@ def main(
     new_name +="_"
     new_name += select_standard
     new_name += str(pos_neg_construct)
-    if qr:
-        new_name += "_qr"
-    # if not M_from_sub:
-    #     new_name += 'Mall'
+
     new_name += '_'
     new_name += hparams_fname.split(".")[0]
 
@@ -119,14 +117,10 @@ def main(
         new_name += '_newprompt'
     if real_edit:
         new_name += '_real'
-    # if c_noupt:
-    #     new_name += '_cnoupt'
-    # if c_adapt:
-    #     new_name += '_cadapt'
 
 
     new_name += '_seq'
-    dir_name += '_sub'
+    dir_name += '_sub_exp'
     # Determine run directory
     # Create new dir if not continuing from prev run OR prev run doesn't exist
     if (
@@ -174,8 +168,8 @@ def main(
         #llama tokenize一定是0开头，再加上所有的target都是" "开头的，因此要考虑是[1:]还是[2:]
         if model_name in ['llama','vicuna']:
         #/data/swh/UER/TencentPretrain/models/vicuna-7b',/data/swh/UER/TencentPretrain/models/llama/7b_new
-            # model = LlamaForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16).cuda()
-            model = LlamaForCausalLM.from_pretrained(model_path).cuda()#github
+            model = LlamaForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16).cuda()
+            # model = LlamaForCausalLM.from_pretrained(model_path).cuda()#github
             tok = LlamaTokenizer.from_pretrained(model_path)
             tok.pad_token = '<unk>'#虽然它是单条tokenize以及评测，但是genearte时会一起tokenize，所以padding还是有用的
             print(f"vocab length={len(tok.get_vocab())}")
@@ -184,8 +178,8 @@ def main(
             tok_loc = LlamaTokenizer.from_pretrained(model_path,padding_side="left")
             tok_loc.pad_token = '<unk>'
         else:#models/gpt-j-6b
-            # model = AutoModelForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16,).cuda()
-            model = AutoModelForCausalLM.from_pretrained(model_path).cuda()#github
+            model = AutoModelForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16,).cuda()
+            # model = AutoModelForCausalLM.from_pretrained(model_path).cuda()#github
             tok = AutoTokenizer.from_pretrained(model_path)
             tok.pad_token = tok.eos_token#空的和<|endoftext|
 
@@ -238,40 +232,10 @@ def main(
     pass_record = {}
     edited_record = {}
     edit_num=0
-    acc_delta = None
 
     case_result_template = str(run_dir / "{}_{}.json")
 
-    if orig_loc:
-        loc_start = time()
-        if args.ds_name == 'zsre':
-            equal_acc = ds_eval_loc(
-                model,
-                tok_loc,
-                loc_loader,
-                None,
-                None
-            )
-            torch.cuda.empty_cache()
-            loc_res = {}
-            loc_res['equal_acc'] = equal_acc
-        else:
-            res = ds_eval_loc(
-                model,
-                tok_loc,
-                loc_loader,
-                snips,
-                vec
-            )
-            torch.cuda.empty_cache()
-            loc_res = {}
-            loc_res['equal_acc'] = res[0]
-            loc_res["ngram_entropy"] = res[1]
-            loc_res['reference_score'] = res[2]
-        loc_exec_time = time()-loc_start
-        loc_res['loc_exec_time'] = loc_exec_time
 
-        np.save(run_dir/("orig_loc.npy"),loc_res)
 
     afedit_res_list = []
 
@@ -302,24 +266,143 @@ def main(
         with open(f"{DATA_DIR}/random_prefix.txt",'r',encoding='utf-8') as f:
             for line in f.readlines():
                 random_prefix_list.append(line.strip())
-        
-    # 如果有max_tolerate_num，就针对
-    weights_final_copy = None
-    if max_tolerate_fail_num <10000:
-        weights_final_copy = {
-            f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
-                model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
-            ).detach().clone()
-            for layer in hparams.layers#critical layers
-        }
-    for record_chunks in chunks(ds, 1):#每一次都更新1个
-        #更新前判断是否应该更新
+
+    #1.先判断是否能够预测
+    #1.1 如果能
+    #1.看para能够预测的，把src+para都填上subject，得到src+para每条是否能够预测
+    #2.再tok一下，得到最后一个位置的idx，然后得到每个样本每层last token的out表征
+    #3.把上述所有表征（分为是否LN）经过最后一层映射
+    #4.统计first target token（对于src和para一致），在vocab中的rank和prob
+
+    #1.2 如果不能，也先跑一遍上述过程，然后编辑后再跑一遍
+    save_dic = {}#key是case_id
+    for record_chunks in chunks(ds, 1):
         record = record_chunks[0]
+
+        record_dic = {}
+
         edit_ = edit_or_not(model,tok_loc,record)
-        if not edit_:
-            print("record has already success and pass")
-            pass_record[record["case_id"]]=record["requested_rewrite"]
-            continue
+        pre_success = []
+        pre_success.append(not edit_)
+        
+        
+        #得到一开始准确率和每层last token的
+        #得到para的文本和准确率
+
+
+        metrics= ds_eval_method(
+            model,
+            tok,
+            record,
+            # [None,None],
+            model_name,
+            model_path,
+            new_prompt)
+ 
+        if ds_name == 'zsre':
+            pre_success+=[metrics['rephrase_predin'][k][1] for k in range(len(metrics['rephrase_predin']))]#只有一条para
+        else:
+            pre_success += metrics['paraphrase_prompts_correct']
+        record_dic['pre_success']=pre_success
+
+        #构造文本列表
+        text_list = []
+        text_list.append(record["requested_rewrite"]['prompt'].format(record["requested_rewrite"]['subject']))
+        text_list += record["paraphrase_prompts"]
+        target = record["requested_rewrite"]["target_new"]["str"]
+        if ds_name == "mcf":
+            target_true = record["requested_rewrite"]["target_true"]["str"]
+
+        # idx_list = [len(a)-1 for a in tok_loc(text_list).input_ids]
+        if 'gpt-j' not in tok.name_or_path:#llama的第一个token是1
+            first_target_token = tok_loc(target).input_ids[1]
+            if ds_name == 'mcf':
+                first_true_token = tok_loc(target_true).input_ids[1]
+        else:
+            first_target_token = tok_loc(target).input_ids[0]
+            if ds_name == 'mcf':
+                first_true_token = tok_loc(target_true).input_ids[0]
+
+        input_tok = tok_loc(text_list,return_tensors="pt",padding=True).to("cuda")
+
+        lm_w, ln_f = (
+            nethook.get_parameter(model, f"{hparams.lm_head_module}.weight").T,
+            nethook.get_module(model, hparams.ln_f_module),
+        )
+        try:
+            lm_b = nethook.get_parameter(model, f"{hparams.lm_head_module}.bias")
+        except LookupError as _:
+            lm_b = next(model.parameters()).new_zeros(model.config.vocab_size)
+
+        with nethook.TraceDict(
+            module=model,
+            layers=[
+                hparams.layer_module_tmp.format(l)#loss_layer是最后一层，因为要得到最后一层的输出
+                for l in range(hparams.v_loss_layer+1)
+            ],
+            retain_input=False,
+            retain_output=True,#得到它的输出
+        ) as tr:
+            _ = model(**input_tok).logits
+
+        #0是默认的，第二个索引是不同text，第三个索引是last token位置
+        #每个文本，每层
+        # print((ln_f(tr[hparams.layer_module_tmp.format(5)].output[0][0][idx_list[0]])@ lm_w + lm_b).shape)
+        # print(torch.softmax(
+        #     ln_f(tr[hparams.layer_module_tmp.format(5)].output[0][0][idx_list[0]])@ lm_w + lm_b
+        #                            ,dim=-1).shape)
+        
+        full_repr_w_ln = [[torch.softmax(
+            ln_f(tr[hparams.layer_module_tmp.format(l)].output[0][text_i][-1])@ lm_w + lm_b
+                                   ,dim=-1).detach().cpu()
+                     for l in range(hparams.v_loss_layer+1)] for text_i in range(len(text_list)) ]
+        
+        full_repr_wo_ln = [[torch.softmax(
+            tr[hparams.layer_module_tmp.format(l)].output[0][text_i][-1]@ lm_w + lm_b
+                                   ,dim=-1).detach().cpu()
+                     for l in range(hparams.v_loss_layer+1)] for text_i in range(len(text_list)) ]
+        
+        rank_prob_w_ln = []
+        for i in range(len(full_repr_w_ln)):
+            l_list = []
+            for j in range(len(full_repr_w_ln[0])):
+                prob = full_repr_w_ln[i][j]
+                if ds_name == "mcf":
+                    l_list.append((prob[first_target_token].numpy(),
+                                   int(prob.sort(descending=True).indices.sort().indices[first_target_token].numpy()),
+                                   prob[first_true_token].numpy(),
+                                   int(prob.sort(descending=True).indices.sort().indices[first_true_token].numpy()),
+                                   prob.sort(descending=True).indices.numpy()[:10]))
+                                   
+                else:
+                    l_list.append((prob[first_target_token].numpy(),
+                                   int(prob.sort(descending=True).indices.sort().indices[first_target_token].numpy()),
+                                   prob.sort(descending=True).indices.numpy()[:10]))
+            rank_prob_w_ln.append(l_list)
+
+        rank_prob_wo_ln = []
+        for i in range(len(full_repr_wo_ln)):
+            l_list = []
+            for j in range(len(full_repr_wo_ln[0])):
+                prob = full_repr_wo_ln[i][j]
+                if ds_name == "mcf":
+                    l_list.append((prob[first_target_token].numpy(),
+                                   int(prob.sort(descending=True).indices.sort().indices[first_target_token].numpy()),
+                                   prob[first_true_token].numpy(),
+                                   int(prob.sort(descending=True).indices.sort().indices[first_true_token].numpy()),
+                                   prob.sort(descending=True).indices.numpy()[:10]))
+                else:
+                    l_list.append((prob[first_target_token].numpy(),int(prob.sort(descending=True).indices.sort().indices[first_target_token].numpy()),
+                                   prob.sort(descending=True).indices.numpy()[:10]))
+            rank_prob_wo_ln.append(l_list)
+
+        record_dic['pre_rank_prob_w_ln'] = rank_prob_w_ln
+        record_dic['pre_rank_prob_wo_ln'] = rank_prob_wo_ln
+
+        # 不管是否成功，都继续编辑
+        # if not edit_:
+        #     save_dic[record["case_id"]] = record_dic
+        #     continue
 
         real_edit_num+=1
         if real_edit and real_edit_num > num_edits:
@@ -335,10 +418,7 @@ def main(
         )
         etc_args = dict(cache_template=cache_template) if any(alg in alg_name for alg in ["ROME", "MEMIT"]) else dict()
 
-        start = time()
-        #影响因素有model 数据集，new_prompt 编辑数量--可以存在run_dir里面，以后要评测可以直接读
-        #直接跑算法，就重新跑一次吧
-        
+
         X_text_list = []
         y_list = []
         words = []
@@ -464,243 +544,123 @@ def main(
             **args_conserve_memory,
             **etc_args,#保存的事先计算好的kv对的地址，但是应该还没算出来
         )
-        if z_diff:
-            np.save(run_dir/("z_"+str(record["case_id"])+".npy"),z)
         if c_adapt:
             last_records = [
                 record["requested_rewrite"]["prompt"].format(record["requested_rewrite"]['subject']) +" "+ record["requested_rewrite"]["target_new"]["str"]
                 for record in record_chunks
                 ]
-        exec_time = time() - start
-        print("Execution took", exec_time)
-        if acc_delta is None:
-            acc_delta = {}
-            with torch.no_grad():
-                for w_name, (key_mat, val_mat,top_abs_indices) in deltas.items():
-                    key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
-                    upd_matrix = key_mat @ val_mat.T
-                    new_matrix = torch.zeros(all_neuron_num, upd_matrix.shape[1], device='cuda')
-                    new_matrix[top_abs_indices, :] = upd_matrix.float()
-                    acc_delta[w_name] = new_matrix.float()
-            
-        else:
-            with torch.no_grad():
-                for w_name, (key_mat, val_mat,top_abs_indices) in deltas.items():
-                    key_mat, val_mat = key_mat.to("cuda"), val_mat.to("cuda")
-                    upd_matrix = key_mat @ val_mat.T
-                    new_matrix = torch.zeros(all_neuron_num, upd_matrix.shape[1], device='cuda')
-                    new_matrix[top_abs_indices, :] = upd_matrix.float()
-                    acc_delta[w_name] += new_matrix.float()
 
-        # np.save(save_deltas_dir/"deltas_"+str(edit_num)+".npy",deltas)#不把每一个都保存了
         edit_record.append(record)
         edit_num+=1
-        model = edited_model
+        # model = edited_model
 
-        # Evaluate new model
-        start = time()
-
-        #一条一条评估,评估可以跳过
-        print("{} record".format(edit_num))
-        # if out_file.exists():
-        #     print(f"Skipping {out_file}; already exists")
-        #     continue
+        metrics= ds_eval_method(
+            edited_model,
+            tok,
+            record,
+            # [None,None],
+            model_name,
+            model_path,
+            new_prompt)
         
-        metrics = {
-            "case_id": record["case_id"],
-            # "grouped_case_ids": case_ids,#一起修改的事实的id
-            "num_edits": num_edits,
-            "time": exec_time,
-            "post": ds_eval_method(
-                model,
-                tok,
-                record,
-                # [None,None],
-                model_name,
-                model_path,
-                new_prompt,
-            ),
-        }
-        afedit_res_list.append(metrics)
-        torch.cuda.empty_cache()
+        after_success = []
 
         if args.ds_name == 'zsre':
-            if not metrics['post']['rewrite_predin'][0][1]:#做错了
-                fail_seq_number +=1 
-            else:
-                fail_seq_number = 0
-                if weights_final_copy is not None:
-                    del weights_final_copy
-                    weights_final_copy = {
-                        f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
-                            model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
-                        ).detach().clone()
-                        for layer in hparams.layers#critical layers
-                    }
+            after_success.append( metrics['rewrite_predin'][0][1])
+            after_success+=[metrics['rephrase_predin'][k][1] for k in range(len(metrics['rephrase_predin']))]#只有一条para
         else:
-            if not metrics['post']['rewrite_prompts_correct'][0]:
-                fail_seq_number +=1 
-            else:
-                fail_seq_number = 0
-                if weights_final_copy is not None:
-                    del weights_final_copy
-                    weights_final_copy = {
-                        f"{hparams.rewrite_module_tmp.format(layer)}.weight": nethook.get_parameter(
-                            model, f"{hparams.rewrite_module_tmp.format(layer)}.weight"
-                        ).detach().clone()
-                        for layer in hparams.layers#critical layers
-                    }
+            after_success.append(metrics['rewrite_prompts_correct'][0])
+            after_success += metrics['paraphrase_prompts_correct']
+        record_dic['after_success']= after_success
+
+        lm_w, ln_f = (
+            nethook.get_parameter(edited_model, f"{hparams.lm_head_module}.weight").T,
+            nethook.get_module(edited_model, hparams.ln_f_module),
+        )
+        try:
+            lm_b = nethook.get_parameter(edited_model, f"{hparams.lm_head_module}.bias")
+        except LookupError as _:
+            lm_b = next(edited_model.parameters()).new_zeros(edited_model.config.vocab_size)
+
+        with nethook.TraceDict(
+            module=edited_model,
+            layers=[
+                hparams.layer_module_tmp.format(l)#loss_layer是最后一层，因为要得到最后一层的输出
+                for l in range(hparams.v_loss_layer+1)
+            ],
+            retain_input=False,
+            retain_output=True,#得到它的输出
+        ) as tr:
+            _ = edited_model(**input_tok).logits
+
+        #0是默认的，第二个索引是不同text，第三个索引是last token位置
+        #每个文本，每层
+        full_repr_w_ln = [[torch.softmax(
+            ln_f(tr[hparams.layer_module_tmp.format(l)].output[0][text_i][-1])@ lm_w + lm_b
+                                   ,dim=-1).detach().cpu()
+                     for l in range(hparams.v_loss_layer+1)] for text_i in range(len(text_list)) ]
+        
+        full_repr_wo_ln = [[torch.softmax(
+            tr[hparams.layer_module_tmp.format(l)].output[0][text_i][-1]@ lm_w + lm_b
+                                   ,dim=-1).detach().cpu()
+                     for l in range(hparams.v_loss_layer+1)] for text_i in range(len(text_list)) ]
+        
+        rank_prob_w_ln = []
+        for i in range(len(full_repr_w_ln)):
+            l_list = []
+            for j in range(len(full_repr_w_ln[0])):
+                prob = full_repr_w_ln[i][j]
+                if ds_name == "mcf":
+                    l_list.append((prob[first_target_token].numpy(),
+                                   int(prob.sort(descending=True).indices.sort().indices[first_target_token].numpy()),
+                                   prob[first_true_token].numpy(),
+                                   int(prob.sort(descending=True).indices.sort().indices[first_true_token].numpy()),
+                                   prob.sort(descending=True).indices.numpy()[:10]))
+                else:
+                    l_list.append((prob[first_target_token].numpy(),int(prob.sort(descending=True).indices.sort().indices[first_target_token].numpy()),
+                                   prob.sort(descending=True).indices.numpy()[:10]))
+            rank_prob_w_ln.append(l_list)
+
+        rank_prob_wo_ln = []
+        for i in range(len(full_repr_wo_ln)):
+            l_list = []
+            for j in range(len(full_repr_wo_ln[0])):
+                prob = full_repr_wo_ln[i][j]
+                if ds_name == "mcf":
+                    l_list.append((prob[first_target_token].numpy(),
+                                   int(prob.sort(descending=True).indices.sort().indices[first_target_token].numpy()),
+                                   prob[first_true_token].numpy(),
+                                   int(prob.sort(descending=True).indices.sort().indices[first_true_token].numpy()),
+                                   prob.sort(descending=True).indices.numpy()[:10]))
+                else:
+                    l_list.append((prob[first_target_token].numpy(),int(prob.sort(descending=True).indices.sort().indices[first_target_token].numpy()),
+                                   prob.sort(descending=True).indices.numpy()[:10]))
+            rank_prob_wo_ln.append(l_list)
+
+        record_dic['after_rank_prob_w_ln'] = rank_prob_w_ln
+        record_dic['after_rank_prob_wo_ln'] = rank_prob_wo_ln
+
+        save_dic[record["case_id"]] = record_dic
+
+
+
+        torch.cuda.empty_cache()
+    # for k,v in record_dic.items():
+    #     print(k)
+    #     print(v)
+    
+    np.save(save_deltas_dir/("rank_prob2.npy"),save_dic)
+
+        
                 
 
-        #把编辑过的评估一遍
-        if (edit_num+1)%eval_edited_freq==0:
-            eval_res_list = []
-            for record in edit_record:
-                metrics = {
-                    "case_id": record["case_id"],
-                    "post": ds_eval_method(
-                        model,
-                        tok,
-                        record,
-                        # None,None,
-                        model_name,
-                        model_path,
-                        new_prompt,
-                    ),
-                }
-                eval_res_list.append(metrics)
-                torch.cuda.empty_cache()
-            out_file_eval = Path(case_result_template.format(num_edits,"eval_"+str(edit_num)))
-            with open(out_file_eval, "w") as f:
-                json.dump(eval_res_list, f, indent=1)
 
-        if fail_seq_number == max_tolerate_fail_num:
-            print("real_edit_num: ",real_edit_num)
-            #把模型参数的值改成
-            with torch.no_grad():
-                for k, v in model.named_parameters():
-                    if k in weights_final_copy:
-                        v[...] = weights_final_copy[k]
-            break
-        #     loc_start= time()
-        #     if args.ds_name == 'zsre':
-        #         equal_list = []#每一个样本只有一个acc，也只有一个结果要看
-        #         for record in ds_loc:
-        #             res= ds_eval_loc(
-        #                 model,
-        #                 tok,
-        #                 record,
-        #                 *(
-        #                     gen_test_vars
-        #                     if record["case_id"] % generation_test_interval == 0
-        #                     else [None, None]
-        #                 ),  # Only test generation every generation_test_interval cases
-        #                 model_name,
-        #                 model_path,
-        #                 new_prompt,
-        #             )
-        #             equal_list.append(res['loc_predin'][0][1])#只有一条，取0，只有True or false
-        #             torch.cuda.empty_cache()
-        #         loc_res = {}
-        #         loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-        #     else:
-        #         equal_list = []
-        #         ngram_entropy_list=[]
-        #         reference_score_list = []
-        #         for record in ds_loc:
-        #             res= ds_eval_loc(
-        #                 model,
-        #                 tok,
-        #                 record,
-        #                 *(
-        #                     gen_test_vars
-        #                     if record["case_id"] % generation_test_interval == 0
-        #                     else [None, None]
-        #                 ),  # Only test generation every generation_test_interval cases
-        #                 model_name,
-        #                 model_path,
-        #                 new_prompt,
-        #             )
-        #             equal_list+=[r[1] for r in res["loc_predin_true"]]
-        #             ngram_entropy_list.append(res["ngram_entropy"])
-        #             reference_score_list.append(res["reference_score"])
-        #             torch.cuda.empty_cache()
-        #         loc_res = {}
-        #         loc_res['equal_acc'] = np.round(equal_list.count(True)/len(equal_list)*100,2)
-        #         loc_res["ngram_entropy"] = np.round(np.mean(ngram_entropy_list)*100,2)
-        #         loc_res['reference_score'] = np.round(np.mean(reference_score_list)*100,2)
-        #     loc_exec_time = time()-loc_start
-        #     loc_res['loc_exec_time'] = loc_exec_time
-
-        #     np.save(save_deltas_dir/("loc_"+str(edit_num)+".npy"),loc_res)
-
-    #保存每天样本编辑后的结果的列表
-    out_file_afedit = Path(case_result_template.format(num_edits,"per_afedit"))
-    with open(out_file_afedit, "w") as f:
-        json.dump(afedit_res_list, f, indent=1)
-
-    #最后再全部跑一遍
-    final_res_list = []
-    for record in edit_record:
-        metrics = {
-            "case_id": record["case_id"],
-            "post": ds_eval_method(
-                model,
-                tok,
-                record,
-                # [None,None],
-                model_name,
-                model_path,
-                new_prompt,
-            ),
-        }
-        final_res_list.append(metrics)
-        torch.cuda.empty_cache()
-
-    #保存最终的模型在所有edited_record上的表现
-    out_file_final = Path(case_result_template.format(num_edits,'per_final'))
-    with open(out_file_final, "w") as f:
-        json.dump(final_res_list, f, indent=1)
-
-    if final_loc:
-        loc_start= time()
-        if args.ds_name == 'zsre':
-            equal_acc = ds_eval_loc(
-                model,
-                tok_loc,
-                loc_loader,
-                None,
-                None
-            )
-            torch.cuda.empty_cache()
-            loc_res = {}
-            loc_res['equal_acc'] = equal_acc
-        else:
-            res = ds_eval_loc(
-                model,
-                tok_loc,
-                loc_loader,
-                snips, 
-                vec
-            )
-            torch.cuda.empty_cache()
-            loc_res = {}
-            loc_res['equal_acc'] = res[0]
-            loc_res["ngram_entropy"] = res[1]
-            loc_res['reference_score'] = res[2]
-        loc_exec_time = time()-loc_start
-        loc_res['loc_exec_time'] = loc_exec_time
-        
-        np.save(run_dir/("final_loc.npy"),loc_res)
-
-
-    
     #保存不断累积的变化量（+）
-    np.save(save_deltas_dir/("deltas_seq.npy"),acc_delta)
-    #保存没被edit的record pass_record["case_id"]=pass_record["requested_rewrite"]
-    np.save(run_dir/("passrecord_"+str(num_edits)+".npy"),pass_record)
-    np.save(run_dir/("editedcord_"+str(num_edits)+".npy"),edited_record)
-    print(f"Results are saved in {run_dir}")
+    # np.save(save_deltas_dir/("deltas_seq.npy"),acc_delta)
+    # #保存没被edit的record pass_record["case_id"]=pass_record["requested_rewrite"]
+    # np.save(run_dir/("passrecord_"+str(num_edits)+".npy"),pass_record)
+    # np.save(run_dir/("editedcord_"+str(num_edits)+".npy"),edited_record)
+    # print(f"Results are saved in {run_dir}")
 
 
 def window(seq, n=2):
