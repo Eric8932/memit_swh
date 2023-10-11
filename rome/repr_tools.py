@@ -93,7 +93,7 @@ def get_words_idxs_in_templates(
             return [
                 [
                     prefixes_len[i]
-                    + words_len[i]-2
+                    + words_len[i]-2 +(1 if prefixes_len[i] == 1 else 0)
                     - (1 if subtoken == "last" or suffixes_len[i] == 0 else 0)
                 ]
                 # If suffix is empty, there is no "first token after the last".
