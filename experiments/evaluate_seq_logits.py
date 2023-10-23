@@ -203,8 +203,8 @@ def main(
         #llama tokenize一定是0开头，再加上所有的target都是" "开头的，因此要考虑是[1:]还是[2:]
         if model_name in ['llama','vicuna']:
         #/data/swh/UER/TencentPretrain/models/vicuna-7b',/data/swh/UER/TencentPretrain/models/llama/7b_new
-            model = LlamaForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16).cuda()
-            # model = LlamaForCausalLM.from_pretrained(model_path).cuda()#github
+            # model = LlamaForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16).cuda()
+            model = LlamaForCausalLM.from_pretrained(model_path).cuda()#github
             tok = LlamaTokenizer.from_pretrained(model_path)
             tok.pad_token = '<unk>'#虽然它是单条tokenize以及评测，但是genearte时会一起tokenize，所以padding还是有用的
             print(f"vocab length={len(tok.get_vocab())}")
@@ -213,8 +213,8 @@ def main(
             tok_loc = LlamaTokenizer.from_pretrained(model_path,padding_side="left")
             tok_loc.pad_token = '<unk>'
         else:#models/gpt-j-6b
-            model = AutoModelForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16,).cuda()
-            # model = AutoModelForCausalLM.from_pretrained(model_path).cuda()#github
+            # model = AutoModelForCausalLM.from_pretrained(model_path,revision="float16",torch_dtype=torch.float16,).cuda()
+            model = AutoModelForCausalLM.from_pretrained(model_path).cuda()#github
             tok = AutoTokenizer.from_pretrained(model_path)
             tok.pad_token = tok.eos_token#空的和<|endoftext|
 
