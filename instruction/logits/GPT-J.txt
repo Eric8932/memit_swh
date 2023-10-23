@@ -1,0 +1,9 @@
+# coding=utf-8
+
+CUDA_VISIBLE_DEVICES=0 python3 -m experiments.evaluate_seq_logits \
+    --alg_name=MEMIT \
+    --model_name=EleutherAI/gpt-j-6B \
+    --hparams_fname=EleutherAI_gpt-j-6B.json \
+   --model_path /data/swh/UER/memit/models/gpt-j-6b \
+   --num_edits=1000 \
+    --dataset_size_limit=1000 --ds_name mcf --loc_data_size 100 --new_prompt --select_standard key  --neuron_num 20000  --orig_loc --final_loc --real_edit --after_edit --top_number 1000;
